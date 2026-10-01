@@ -16,10 +16,8 @@ You have perfect memory of the current conversation.
 If the user asks for an image, they will use the 'image:' command, which the system handles separately.
 Always be direct, helpful, and execute the task precisely."""
 
-# Your custom logo
 LOGO_URL = "https://i.imgur.com/J3zYDId.jpeg"
 
-# --- PWA MANIFEST ---
 MANIFEST = {
     "name": "Spibody AI",
     "short_name": "SpibodyAI",
@@ -28,32 +26,15 @@ MANIFEST = {
     "background_color": "#f8fafc",
     "theme_color": "#6366f1",
     "description": "Unrestricted AI Assistant by Spibody",
-    "icons": [
-        {
-            "src": LOGO_URL,
-            "sizes": "512x512",
-            "type": "image/jpeg"
-        }
-    ]
+    "icons": [{"src": LOGO_URL, "sizes": "512x512", "type": "image/jpeg"}]
 }
 
-# --- SERVICE WORKER ---
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v2';
-const urlsToCache = ['/'];
-
-self.addEventListener('install', event => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(urlsToCache))
-    );
-});
-
+const CACHE_NAME = 'spibody-ai-v3';
+self.addEventListener('install', event => { self.skipWaiting(); });
+self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
-    event.respondWith(
-        caches.match(event.request)
-            .then(response => response || fetch(event.request))
-    );
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
 """
 
@@ -88,7 +69,7 @@ HTML_TEMPLATE = """
 html, body { height: 100%; overflow: hidden; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
 .header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; padding: 16px 20px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-md); z-index: 10; }
-.header-logo { width: 40px; height: 40px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); }
+.header-logo { width: 40px; height: 40px; border-radius: 10px; overflow: hidden; background: rgba(255,255,255,0.1); }
 .header-logo img { width: 100%; height: 100%; object-fit: cover; }
 .header-title { font-weight: 700; font-size: 1.1rem; }
 .header-status { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; opacity: 0.9; margin-left: auto; }
@@ -109,7 +90,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .message { display: flex; gap: 10px; animation: fadeIn 0.3s ease-out; max-width: 100%; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .message.user { flex-direction: row-reverse; }
-.avatar { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--surface-2); }
+.avatar { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .avatar.bot { background: transparent; }
 .avatar.bot img { width: 100%; height: 100%; object-fit: cover; }
 .avatar.user { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 600; font-size: 0.9rem; }
@@ -123,7 +104,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .copy-btn:hover { background: rgba(255,255,255,0.2); }
 .image-container { position: relative; display: inline-block; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
 .image-container img { max-width: 100%; display: block; }
-.watermark { position: absolute; bottom: 8px; right: 8px; background: rgba(99,102,241,0.9); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; font-family: 'Inter', sans-serif; pointer-events: none; letter-spacing: 0.5px; }
+.watermark { position: absolute; bottom: 8px; right: 8px; background: rgba(99,102,241,0.9); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; pointer-events: none; }
 .timestamp { font-size: 0.7rem; color: var(--text-light); margin-top: 4px; padding: 0 4px; }
 .message.user .timestamp { text-align: right; }
 .typing { display: flex; gap: 4px; padding: 4px 0; }
@@ -176,11 +157,11 @@ textarea::placeholder { color: var(--text-light); }
                 <div class="suggestion-text">Explain anything</div>
             </button>
             <button class="suggestion" onclick="useSuggestion('image: a cyberpunk marketplace in Accra at night')">
-                <div class="suggestion-icon"></div>
+                <div class="suggestion-icon">🎨</div>
                 <div class="suggestion-text">Generate images</div>
             </button>
             <button class="suggestion" onclick="useSuggestion('Translate this to French: Hello, how are you?')">
-                <div class="suggestion-icon">🌍</div>
+                <div class="suggestion-icon"></div>
                 <div class="suggestion-text">Translate & Analyze</div>
             </button>
         </div>
@@ -222,9 +203,7 @@ function installApp() {
     if (deferredPrompt) {
         deferredPrompt.prompt();
         deferredPrompt.userChoice.then((choiceResult) => {
-            if (choiceResult.outcome === 'accepted') {
-                installBtn.style.display = 'none';
-            }
+            if (choiceResult.outcome === 'accepted') installBtn.style.display = 'none';
             deferredPrompt = null;
         });
     }
@@ -263,11 +242,8 @@ function addMessage(text, isUser, isHtml = false) {
     msg.className = 'message ' + (isUser ? 'user' : 'bot');
     const avatar = document.createElement('div');
     avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
-    if (isUser) {
-        avatar.textContent = '👤';
-    } else {
-        avatar.innerHTML = '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">';
-    }
+    if (isUser) { avatar.textContent = '👤'; }
+    else { avatar.innerHTML = '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">'; }
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.innerHTML = isHtml ? text : formatMessage(text);
@@ -296,13 +272,10 @@ async function sendMessage() {
     const text = userInput.value.trim();
     if (!text || isProcessing) return;
     isProcessing = true; sendBtn.disabled = true;
-    
     addMessage(text, true);
     chatHistory.push({role: 'user', content: text});
-    
     userInput.value = ''; userInput.style.height = 'auto';
     addTyping();
-    
     try {
         const res = await fetch('/chat', {
             method: 'POST',
@@ -311,15 +284,10 @@ async function sendMessage() {
         });
         const data = await res.json();
         removeTyping();
-        
         chatHistory.push({role: 'assistant', content: data.reply});
         if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
-        
-        if (data.is_image) {
-            addMessage(data.reply, false, true);
-        } else {
-            addMessage(data.reply, false);
-        }
+        if (data.is_image) addMessage(data.reply, false, true);
+        else addMessage(data.reply, false);
     } catch (err) {
         removeTyping();
         addMessage('⚠️ Connection error. Please try again.', false);
@@ -346,6 +314,7 @@ def chat():
     if not user_message:
         return jsonify({"reply": "Please enter a command."})
     
+    # Image generation
     if user_message.lower().startswith('image:'):
         img_prompt = user_message[6:].strip()
         encoded = urllib.parse.quote(img_prompt)
@@ -361,53 +330,51 @@ def chat():
     if not API_KEY:
         return jsonify({"reply": "⚠️ Server error: API key missing."})
     
-    try:
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        for msg in history:
-            messages.append(msg)
-            
-        # Using a reliable free model - trying multiple options
-        res = requests.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {API_KEY}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost",
-                "X-Title": "SpibodyAI"
-            },
-            json={
-                "model": "mistralai/mistral-7b-instruct:free",
-                "messages": messages
-            },
-            timeout=45
-        )
-        
-        if res.status_code == 200:
-            reply = res.json()['choices'][0]['message']['content']
-            return jsonify({"reply": reply, "is_image": False})
-        elif res.status_code == 404:
-            # Fallback to another model if 404
+    # List of free models to try in order (fallback chain)
+    models_to_try = [
+        "cohere/north-mini-code:free",
+        "deepseek/deepseek-r1-distill-llama-70b:free",
+        "google/gemma-3-1b-it:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+    ]
+    
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    for msg in history:
+        messages.append(msg)
+    
+    headers = {
+        "Authorization": f"Bearer {API_KEY}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost",
+        "X-Title": "SpibodyAI"
+    }
+    
+    last_error = None
+    
+    for model in models_to_try:
+        try:
             res = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {API_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "http://localhost",
-                    "X-Title": "SpibodyAI"
-                },
-                json={
-                    "model": "meta-llama/llama-3-8b-instruct:free",
-                    "messages": messages
-                },
+                headers=headers,
+                json={"model": model, "messages": messages},
                 timeout=45
             )
+            
             if res.status_code == 200:
                 reply = res.json()['choices'][0]['message']['content']
                 return jsonify({"reply": reply, "is_image": False})
-        
-        return jsonify({"reply": f"️ AI error ({res.status_code}). Try again.", "is_image": False})
-    except Exception as e:
-        return jsonify({"reply": "⚠️ Connection error.", "is_image": False})
+            else:
+                last_error = f"{model} returned {res.status_code}"
+                continue
+        except Exception as e:
+            last_error = str(e)
+            continue
+    
+    # All models failed
+    return jsonify({
+        "reply": f"️ All AI models are busy right now. Error: {last_error}. Please try again in a minute.",
+        "is_image": False
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
