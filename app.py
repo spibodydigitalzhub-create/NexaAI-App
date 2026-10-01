@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v4';
+const CACHE_NAME = 'spibody-ai-v5';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -101,7 +101,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .message.bot .bubble { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: var(--shadow-sm); }
 .bubble code { background: rgba(0,0,0,0.06); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; }
 .message.user .bubble code { background: rgba(255,255,255,0.2); }
-.bubble pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 10px; overflow-x: auto; margin: 10px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; position: relative; }
+.bubble pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 10px; overflow-x: auto; margin: 10px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; position: relative; white-space: pre-wrap; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.1); border: none; color: #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; }
 .copy-btn:hover { background: rgba(255,255,255,0.2); }
 .image-container { position: relative; display: inline-block; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
@@ -199,15 +199,20 @@ const installBtn = document.getElementById('installBtn');
 let isProcessing = false;
 let deferredPrompt;
 
-// PERMANENT MEMORY: Load from localStorage
-let chatHistory = JSON.parse(localStorage.getItem('spibody_chat_history')) || [];
+// PERMANENT MEMORY
+let chatHistory = [];
+try {
+    const saved = localStorage.getItem('spibody_chat_history');
+    if (saved) chatHistory = JSON.parse(saved);
+} catch (e) { console.error('Memory load error:', e); }
 
 function saveHistory() {
-    localStorage.setItem('spibody_chat_history', JSON.stringify(chatHistory));
+    try { localStorage.setItem('spibody_chat_history', JSON.stringify(chatHistory)); } 
+    catch (e) { console.error('Memory save error:', e); }
 }
 
 function clearMemory() {
-    if(confirm('Are you sure you want to clear Spibody AI\'s memory?')) {
+    if(confirm('Clear all memory and start fresh?')) {
         chatHistory = [];
         localStorage.removeItem('spibody_chat_history');
         chatBox.innerHTML = '';
@@ -216,12 +221,11 @@ function clearMemory() {
     }
 }
 
-// Render existing history on load
 function renderHistory() {
     if (chatHistory.length > 0) {
         welcome.style.display = 'none';
         chatHistory.forEach(msg => {
-            addMessage(msg.content, msg.role === 'user', false);
+            try { addMessage(msg.content, msg.role === 'user', false); } catch(e) {}
         });
     }
 }
@@ -253,43 +257,51 @@ function handleKeyPress(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDe
 function useSuggestion(text) { userInput.value = text; sendMessage(); }
 function getTime() { return new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); }
 
+// Simplified formatter to prevent crashes
 function formatMessage(text) {
-    text = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    text = text.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$2</code></pre>');
-    text = text.replace(/```([\\s\\S]*?)```/g, '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button><code>$1</code></pre>');
-    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-    text = text.replace(/\\*\\*([^*]+)\\*\\*/g, '<strong>$1</strong>');
-    text = text.replace(/\\*([^*]+)\\*/g, '<em>$1</em>');
-    text = text.replace(/\\n/g, '<br>');
-    return text;
-}
-
-function copyCode(btn) {
-    const code = btn.nextElementSibling.textContent;
-    navigator.clipboard.writeText(code).then(() => { btn.textContent = 'Copied!'; setTimeout(() => btn.textContent = 'Copy', 2000); });
+    if (!text) return '';
+    // Escape HTML first
+    let safeText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    // Simple line breaks
+    safeText = safeText.replace(/\n/g, '<br>');
+    // Simple bold
+    safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Simple code blocks
+    safeText = safeText.replace(/```(.*?)```/gs, '<pre>$1</pre>');
+    safeText = safeText.replace(/`(.*?)`/g, '<code>$1</code>');
+    return safeText;
 }
 
 function addMessage(text, isUser, isHtml = false) {
-    if (welcome) welcome.style.display = 'none';
-    const msg = document.createElement('div');
-    msg.className = 'message ' + (isUser ? 'user' : 'bot');
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
-    if (isUser) { avatar.textContent = '👤'; }
-    else { avatar.innerHTML = '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">'; }
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.innerHTML = isHtml ? text : formatMessage(text);
-    const time = document.createElement('div');
-    time.className = 'timestamp';
-    time.textContent = getTime();
-    msg.appendChild(avatar);
-    const content = document.createElement('div');
-    content.style.flex = '1'; content.style.maxWidth = '75%';
-    content.appendChild(bubble); content.appendChild(time);
-    msg.appendChild(content);
-    chatBox.appendChild(msg);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    try {
+        if (welcome) welcome.style.display = 'none';
+        const msg = document.createElement('div');
+        msg.className = 'message ' + (isUser ? 'user' : 'bot');
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
+        if (isUser) { avatar.textContent = '👤'; }
+        else { avatar.innerHTML = '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">'; }
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.innerHTML = isHtml ? text : formatMessage(text);
+        
+        const time = document.createElement('div');
+        time.className = 'timestamp';
+        time.textContent = getTime();
+        
+        msg.appendChild(avatar);
+        const content = document.createElement('div');
+        content.style.flex = '1'; content.style.maxWidth = '75%';
+        content.appendChild(bubble); content.appendChild(time);
+        msg.appendChild(content);
+        
+        chatBox.appendChild(msg);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+        console.error('addMessage error:', e);
+    }
 }
 
 function addTyping() {
@@ -304,13 +316,20 @@ function removeTyping() { const t = document.getElementById('typing-msg'); if (t
 async function sendMessage() {
     const text = userInput.value.trim();
     if (!text || isProcessing) return;
-    isProcessing = true; sendBtn.disabled = true;
     
+    isProcessing = true; 
+    sendBtn.disabled = true;
+    
+    // 1. Add user message immediately
     addMessage(text, true);
     chatHistory.push({role: 'user', content: text});
-    saveHistory(); // Save to permanent memory
+    saveHistory();
     
-    userInput.value = ''; userInput.style.height = 'auto';
+    // 2. Clear input
+    userInput.value = ''; 
+    userInput.style.height = 'auto';
+    
+    // 3. Show typing indicator
     addTyping();
     
     try {
@@ -319,20 +338,28 @@ async function sendMessage() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({message: text, history: chatHistory})
         });
+        
+        if (!res.ok) throw new Error('Server returned ' + res.status);
+        
         const data = await res.json();
         removeTyping();
         
         chatHistory.push({role: 'assistant', content: data.reply});
-        if (chatHistory.length > 30) chatHistory = chatHistory.slice(-30); // Keep last 30 messages to save space
-        saveHistory(); // Save to permanent memory
+        if (chatHistory.length > 30) chatHistory = chatHistory.slice(-30);
+        saveHistory();
         
         if (data.is_image) addMessage(data.reply, false, true);
         else addMessage(data.reply, false);
+        
     } catch (err) {
         removeTyping();
-        addMessage('⚠️ Connection error. Please try again.', false);
+        console.error('Fetch error:', err);
+        addMessage('⚠️ Error: ' + err.message + '. The server might be waking up. Try again in 30 seconds.', false);
     } finally {
-        isProcessing = false; sendBtn.disabled = false; userInput.focus();
+        // 4. ALWAYS reset processing state
+        isProcessing = false; 
+        sendBtn.disabled = false; 
+        userInput.focus();
     }
 }
 
@@ -350,6 +377,7 @@ def home():
 
 @app.route('/chat', methods=['POST'])
 def chat():
+    print("Received chat request") # Debug log
     data = request.json
     user_message = data.get('message', '')
     history = data.get('history', [])
@@ -393,11 +421,12 @@ def chat():
     last_error = None
     for model in models_to_try:
         try:
+            print(f"Trying model: {model}")
             res = requests.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers=headers,
                 json={"model": model, "messages": messages},
-                timeout=45
+                timeout=60 # Increased timeout for sleeping servers
             )
             if res.status_code == 200:
                 reply = res.json()['choices'][0]['message']['content']
@@ -410,7 +439,7 @@ def chat():
             continue
     
     return jsonify({
-        "reply": f"⚠️ All AI models are busy right now. Error: {last_error}. Please try again in a minute.",
+        "reply": f"️ All AI models are busy. Error: {last_error}. Please try again in a minute.",
         "is_image": False
     })
 
