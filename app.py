@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v6';
+const CACHE_NAME = 'spibody-ai-v7';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -58,7 +58,7 @@ HTML_TEMPLATE = """
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="https://i.imgur.com/J3zYDId.jpeg">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -89,9 +89,35 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .avatar.bot { background: transparent; }
 .avatar.bot img { width: 100%; height: 100%; object-fit: cover; }
 .avatar.user { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 600; font-size: 0.9rem; }
-.bubble { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 0.95rem; line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+.bubble { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 0.95rem; line-height: 1.6; word-wrap: break-word; user-select: text; -webkit-user-select: text; }
 .message.user .bubble { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border-bottom-right-radius: 4px; }
 .message.bot .bubble { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: var(--shadow-sm); }
+
+/* Markdown Styling */
+.bubble p { margin-bottom: 12px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble strong { font-weight: 700; color: inherit; }
+.message.user .bubble strong { color: #fff; }
+.bubble em { font-style: italic; }
+.bubble h1, .bubble h2, .bubble h3 { font-weight: 700; margin: 16px 0 8px 0; line-height: 1.3; }
+.bubble h1 { font-size: 1.3rem; }
+.bubble h2 { font-size: 1.15rem; }
+.bubble h3 { font-size: 1.05rem; }
+.bubble ul, .bubble ol { margin: 8px 0; padding-left: 24px; }
+.bubble li { margin-bottom: 6px; line-height: 1.5; }
+.bubble blockquote { border-left: 3px solid var(--primary); padding-left: 12px; margin: 12px 0; color: var(--text-muted); font-style: italic; }
+.message.user .bubble blockquote { border-left-color: rgba(255,255,255,0.5); color: rgba(255,255,255,0.9); }
+.bubble hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.message.user .bubble hr { border-top-color: rgba(255,255,255,0.3); }
+.bubble a { color: var(--primary); text-decoration: underline; }
+.message.user .bubble a { color: #fff; }
+.bubble code { background: rgba(0,0,0,0.08); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; user-select: all; }
+.message.user .bubble code { background: rgba(255,255,255,0.2); }
+.bubble pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 10px; overflow-x: auto; margin: 12px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; position: relative; user-select: text; -webkit-user-select: text; }
+.bubble pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+.copy-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.15); border: none; color: #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
+.copy-btn:hover { background: rgba(255,255,255,0.25); }
+.copy-btn.copied { background: #10b981; color: white; }
 .image-container { position: relative; display: inline-block; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
 .image-container img { max-width: 100%; display: block; }
 .watermark { position: absolute; bottom: 8px; right: 8px; background: rgba(99,102,241,0.9); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; pointer-events: none; }
@@ -137,7 +163,7 @@ textarea::placeholder { color: var(--text-light); }
     <div class="input-wrapper">
         <textarea id="userInput" rows="1" placeholder="Type a message..." oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
     </div>
-    <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()"></button>
 </div>
 <div class="footer-hint">Spibody AI remembers everything. Type 'image: [prompt]' for art.</div>
 
@@ -150,12 +176,10 @@ const welcome = document.getElementById('welcome');
 let isProcessing = false;
 let chatHistory = [];
 
-// SAFE LOAD
 try {
     const saved = localStorage.getItem('spibody_history');
     if (saved) chatHistory = JSON.parse(saved);
 } catch (e) {
-    console.error("Memory corrupted, clearing it.");
     localStorage.removeItem('spibody_history');
 }
 
@@ -164,7 +188,7 @@ function saveHistory() {
 }
 
 function forceReset() {
-    if(confirm("This will delete all memory and refresh the page. Continue?")) {
+    if(confirm("Clear all memory and refresh?")) {
         localStorage.clear();
         location.reload();
     }
@@ -178,15 +202,93 @@ function renderHistory() {
 }
 
 function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+function handleKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function getTime() { return new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); }
 
-function handleKeyDown(e) { 
-    if (e.key === 'Enter' && !e.shiftKey) { 
-        e.preventDefault(); 
-        sendMessage(); 
-    } 
+// PROFESSIONAL MARKDOWN PARSER
+function parseMarkdown(text) {
+    if (!text) return '';
+    
+    // Escape HTML first
+    let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    
+    // Code blocks (``` ... ```)
+    html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(match, lang, code) {
+        const langLabel = lang ? '<div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;font-family:Inter,sans-serif;">' + lang + '</div>' : '';
+        return '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>' + langLabel + '<code>' + code.trim() + '</code></pre>';
+    });
+    
+    // Inline code
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Headers
+    html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+    
+    // Bold and Italic
+    html = html.replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');
+    html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
+    html = html.replace(/\\*(.*?)\\*/g, '<em>$1</em>');
+    
+    // Blockquotes
+    html = html.replace(/^&gt; (.*$)/gm, '<blockquote>$1</blockquote>');
+    
+    // Horizontal rules
+    html = html.replace(/^---$/gm, '<hr>');
+    
+    // Unordered lists
+    html = html.replace(/^[\\-\\*] (.*$)/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\\/li>\\n?)+/g, '<ul>$&</ul>');
+    
+    // Ordered lists
+    html = html.replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>');
+    
+    // Links
+    html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>');
+    
+    // Paragraphs: split by double newlines
+    const paragraphs = html.split(/\\n\\n+/);
+    html = paragraphs.map(p => {
+        p = p.trim();
+        if (!p) return '';
+        // Don't wrap block-level elements in <p>
+        if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || 
+            p.startsWith('<pre') || p.startsWith('<blockquote') || p.startsWith('<hr')) {
+            return p;
+        }
+        // Convert single newlines to <br> within paragraphs
+        p = p.replace(/\\n/g, '<br>');
+        return '<p>' + p + '</p>';
+    }).join('');
+    
+    return html;
 }
 
-function getTime() { return new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); }
+function copyCode(btn) {
+    const code = btn.parentElement.querySelector('code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        btn.textContent = 'Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => { 
+            btn.textContent = 'Copy'; 
+            btn.classList.remove('copied');
+        }, 2000);
+    }).catch(() => {
+        // Fallback for older browsers
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+    });
+}
 
 function addMessage(text, isUser, isHtml = false) {
     if (welcome) welcome.style.display = 'none';
@@ -199,7 +301,7 @@ function addMessage(text, isUser, isHtml = false) {
     
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.innerHTML = isHtml ? text : text.replace(/\\n/g, '<br>');
+    bubble.innerHTML = isHtml ? text : parseMarkdown(text);
     
     const time = document.createElement('div');
     time.className = 'timestamp';
@@ -229,18 +331,12 @@ function removeTyping() {
 }
 
 async function sendMessage() {
-    console.log("Send clicked!");
     const text = userInput.value.trim();
-    console.log("Text:", text);
-    
-    if (!text || isProcessing) {
-        console.log("Blocked: empty or processing");
-        return;
-    }
+    if (!text || isProcessing) return;
     
     isProcessing = true;
     sendBtn.disabled = true;
-    sendBtn.innerHTML = '⏳'; // Visual feedback
+    sendBtn.innerHTML = '';
     
     addMessage(text, true);
     chatHistory.push({role: 'user', content: text});
@@ -251,14 +347,12 @@ async function sendMessage() {
     addTyping();
     
     try {
-        console.log("Fetching from server...");
         const res = await fetch('/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({message: text, history: chatHistory})
         });
         
-        console.log("Server responded:", res.status);
         const data = await res.json();
         removeTyping();
         
@@ -270,11 +364,9 @@ async function sendMessage() {
         else addMessage(data.reply, false);
         
     } catch (err) {
-        console.error("Fetch failed:", err);
         removeTyping();
         addMessage('⚠️ Connection error. The server might be waking up. Wait 30 seconds and try again.', false);
     } finally {
-        console.log("Resetting button state");
         isProcessing = false;
         sendBtn.disabled = false;
         sendBtn.innerHTML = '➤';
@@ -282,7 +374,6 @@ async function sendMessage() {
     }
 }
 
-// Initialize
 renderHistory();
 userInput.focus();
 </script>
@@ -296,7 +387,6 @@ def home():
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    print("🔵 Received chat request")
     data = request.json
     user_message = data.get('message', '')
     history = data.get('history', [])
@@ -331,13 +421,10 @@ def chat():
     
     for model in models_to_try:
         try:
-            print(f"🟡 Trying model: {model}")
             res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=60)
             if res.status_code == 200:
-                print("🟢 Success!")
                 return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
         except Exception as e:
-            print(f"🔴 Model {model} failed: {e}")
             continue
     
     return jsonify({"reply": "⚠️ All AI models are busy. Please try again in a minute.", "is_image": False})
