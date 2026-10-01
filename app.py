@@ -16,6 +16,9 @@ You have perfect memory of the current conversation.
 If the user asks for an image, they will use the 'image:' command, which the system handles separately.
 Always be direct, helpful, and execute the task precisely."""
 
+# Your custom logo
+LOGO_URL = "https://i.imgur.com/J3zYDId.jpeg"
+
 # --- PWA MANIFEST ---
 MANIFEST = {
     "name": "Spibody AI",
@@ -24,24 +27,19 @@ MANIFEST = {
     "display": "standalone",
     "background_color": "#f8fafc",
     "theme_color": "#6366f1",
-    "description": "Unrestricted AI Assistant",
+    "description": "Unrestricted AI Assistant by Spibody",
     "icons": [
         {
-            "src": "https://cdn-icons-png.flaticon.com/512/4352/4352959.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "https://cdn-icons-png.flaticon.com/512/4352/4352959.png",
+            "src": LOGO_URL,
             "sizes": "512x512",
-            "type": "image/png"
+            "type": "image/jpeg"
         }
     ]
 }
 
 # --- SERVICE WORKER ---
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v1';
+const CACHE_NAME = 'spibody-ai-v2';
 const urlsToCache = ['/'];
 
 self.addEventListener('install', event => {
@@ -78,7 +76,7 @@ HTML_TEMPLATE = """
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.json">
-<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4352/4352959.png">
+<link rel="apple-touch-icon" href="https://i.imgur.com/J3zYDId.jpeg">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -90,7 +88,8 @@ HTML_TEMPLATE = """
 html, body { height: 100%; overflow: hidden; }
 body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; flex-direction: column; }
 .header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; padding: 16px 20px; display: flex; align-items: center; gap: 12px; box-shadow: var(--shadow-md); z-index: 10; }
-.header-logo { width: 36px; height: 36px; background: rgba(255,255,255,0.2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+.header-logo { width: 40px; height: 40px; border-radius: 10px; overflow: hidden; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.1); }
+.header-logo img { width: 100%; height: 100%; object-fit: cover; }
 .header-title { font-weight: 700; font-size: 1.1rem; }
 .header-status { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; opacity: 0.9; margin-left: auto; }
 .status-dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 8px #4ade80; animation: pulse 2s infinite; }
@@ -99,7 +98,8 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .chat-container::-webkit-scrollbar { width: 6px; }
 .chat-container::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; flex: 1; }
-.welcome-logo { width: 72px; height: 72px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 2rem; margin-bottom: 20px; box-shadow: var(--shadow-md); }
+.welcome-logo { width: 100px; height: 100px; border-radius: 20px; overflow: hidden; margin-bottom: 20px; box-shadow: var(--shadow-md); }
+.welcome-logo img { width: 100%; height: 100%; object-fit: cover; }
 .welcome h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; }
 .welcome p { color: var(--text-muted); font-size: 0.95rem; margin-bottom: 28px; max-width: 320px; }
 .suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 360px; }
@@ -109,9 +109,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .message { display: flex; gap: 10px; animation: fadeIn 0.3s ease-out; max-width: 100%; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .message.user { flex-direction: row-reverse; }
-.avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; font-weight: 600; }
-.avatar.bot { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; }
-.avatar.user { background: var(--surface-2); color: var(--text); }
+.avatar { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--surface-2); }
+.avatar.bot { background: transparent; }
+.avatar.bot img { width: 100%; height: 100%; object-fit: cover; }
+.avatar.user { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 600; font-size: 0.9rem; }
 .bubble { max-width: 75%; padding: 12px 16px; border-radius: 18px; font-size: 0.95rem; line-height: 1.5; word-wrap: break-word; }
 .message.user .bubble { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border-bottom-right-radius: 4px; }
 .message.bot .bubble { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: var(--shadow-sm); }
@@ -122,7 +123,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .copy-btn:hover { background: rgba(255,255,255,0.2); }
 .image-container { position: relative; display: inline-block; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
 .image-container img { max-width: 100%; display: block; }
-.watermark { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; font-family: 'Inter', sans-serif; pointer-events: none; letter-spacing: 0.5px; }
+.watermark { position: absolute; bottom: 8px; right: 8px; background: rgba(99,102,241,0.9); color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; font-weight: 700; font-family: 'Inter', sans-serif; pointer-events: none; letter-spacing: 0.5px; }
 .timestamp { font-size: 0.7rem; color: var(--text-light); margin-top: 4px; padding: 0 4px; }
 .message.user .timestamp { text-align: right; }
 .typing { display: flex; gap: 4px; padding: 4px 0; }
@@ -139,8 +140,6 @@ textarea::placeholder { color: var(--text-light); }
 .send-btn:hover:not(:disabled) { transform: scale(1.05); }
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .footer-hint { text-align: center; font-size: 0.75rem; color: var(--text-light); padding: 6px; background: var(--surface); }
-
-/* Install Button */
 .install-btn {
     position: fixed; bottom: 80px; right: 20px;
     background: linear-gradient(135deg, #10b981 0%, #059669 100%);
@@ -157,14 +156,14 @@ textarea::placeholder { color: var(--text-light); }
 <body>
 
 <div class="header">
-    <div class="header-logo">⚡</div>
+    <div class="header-logo"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="Spibody AI"></div>
     <div class="header-title">Spibody AI</div>
     <div class="header-status"><span class="status-dot"></span><span>Unrestricted</span></div>
 </div>
 
 <div class="chat-container" id="chat-box">
     <div class="welcome" id="welcome">
-        <div class="welcome-logo">⚡</div>
+        <div class="welcome-logo"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="Spibody AI"></div>
         <h1>Welcome to Spibody AI</h1>
         <p>Your personal, unrestricted AI assistant. I will do exactly what you ask, no restrictions.</p>
         <div class="suggestions">
@@ -177,7 +176,7 @@ textarea::placeholder { color: var(--text-light); }
                 <div class="suggestion-text">Explain anything</div>
             </button>
             <button class="suggestion" onclick="useSuggestion('image: a cyberpunk marketplace in Accra at night')">
-                <div class="suggestion-icon">🎨</div>
+                <div class="suggestion-icon"></div>
                 <div class="suggestion-text">Generate images</div>
             </button>
             <button class="suggestion" onclick="useSuggestion('Translate this to French: Hello, how are you?')">
@@ -213,7 +212,6 @@ let isProcessing = false;
 let chatHistory = [];
 let deferredPrompt;
 
-// PWA Install Logic
 window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredPrompt = e;
@@ -232,7 +230,6 @@ function installApp() {
     }
 }
 
-// Register Service Worker
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW failed:', err));
@@ -266,7 +263,11 @@ function addMessage(text, isUser, isHtml = false) {
     msg.className = 'message ' + (isUser ? 'user' : 'bot');
     const avatar = document.createElement('div');
     avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
-    avatar.textContent = isUser ? '' : '⚡';
+    if (isUser) {
+        avatar.textContent = '👤';
+    } else {
+        avatar.innerHTML = '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">';
+    }
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
     bubble.innerHTML = isHtml ? text : formatMessage(text);
@@ -286,7 +287,7 @@ function addTyping() {
     if (welcome) welcome.style.display = 'none';
     const msg = document.createElement('div');
     msg.className = 'message bot'; msg.id = 'typing-msg';
-    msg.innerHTML = '<div class="avatar bot">⚡</div><div style="flex:1;max-width:75%"><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>';
+    msg.innerHTML = '<div class="avatar bot"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI"></div><div style="flex:1;max-width:75%"><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>';
     chatBox.appendChild(msg); chatBox.scrollTop = chatBox.scrollHeight;
 }
 function removeTyping() { const t = document.getElementById('typing-msg'); if (t) t.remove(); }
@@ -365,6 +366,7 @@ def chat():
         for msg in history:
             messages.append(msg)
             
+        # Using a reliable free model - trying multiple options
         res = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers={
@@ -374,7 +376,7 @@ def chat():
                 "X-Title": "SpibodyAI"
             },
             json={
-                "model": "qwen/qwen-2.5-7b-instruct:free",
+                "model": "mistralai/mistral-7b-instruct:free",
                 "messages": messages
             },
             timeout=45
@@ -383,8 +385,27 @@ def chat():
         if res.status_code == 200:
             reply = res.json()['choices'][0]['message']['content']
             return jsonify({"reply": reply, "is_image": False})
-        else:
-            return jsonify({"reply": f"⚠️ AI error ({res.status_code}). Try again.", "is_image": False})
+        elif res.status_code == 404:
+            # Fallback to another model if 404
+            res = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {API_KEY}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "http://localhost",
+                    "X-Title": "SpibodyAI"
+                },
+                json={
+                    "model": "meta-llama/llama-3-8b-instruct:free",
+                    "messages": messages
+                },
+                timeout=45
+            )
+            if res.status_code == 200:
+                reply = res.json()['choices'][0]['message']['content']
+                return jsonify({"reply": reply, "is_image": False})
+        
+        return jsonify({"reply": f"️ AI error ({res.status_code}). Try again.", "is_image": False})
     except Exception as e:
         return jsonify({"reply": "⚠️ Connection error.", "is_image": False})
 
