@@ -32,7 +32,6 @@ body { display: flex; flex-direction: column; }
 .avatar.bot { background: transparent; }
 .avatar.bot img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
-/* WIDE AND TALL BUBBLES */
 .bubble { max-width: 90%; padding: 18px 22px; border-radius: 20px; font-size: 1.05rem; line-height: 1.8; word-wrap: break-word; }
 .message.user .bubble { background: var(--primary); color: white; border-bottom-right-radius: 4px; }
 .message.bot .bubble { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: var(--shadow); }
@@ -52,7 +51,6 @@ body { display: flex; flex-direction: column; }
 .typing span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes bounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
 
-/* TALL INPUT AREA */
 .input-area { background: var(--surface); border-top: 1px solid var(--border); padding: 16px; display: flex; gap: 12px; align-items: flex-end; }
 .input-wrapper { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 24px; padding: 10px 16px; display: flex; align-items: flex-end; }
 textarea { flex: 1; border: none; background: transparent; resize: none; outline: none; font-family: inherit; font-size: 1.05rem; min-height: 60px; max-height: 200px; line-height: 1.5; color: var(--text); }
@@ -70,14 +68,14 @@ textarea { flex: 1; border: none; background: transparent; resize: none; outline
 <div class="header">
     <div class="header-title">Spibody AI</div>
     <div class="header-actions">
-        <button class="action-btn" onclick="clearChat()">Clear</button>
+        <button class="action-btn" onclick="clearChat()">Clear History</button>
     </div>
 </div>
 
 <div class="chat-container" id="chatBox">
     <div class="welcome" id="welcome">
         <h1>Welcome to Spibody AI</h1>
-        <p>Your personal, unrestricted AI assistant.</p>
+        <p>Your personal, 100% unrestricted AI assistant.</p>
     </div>
 </div>
 
@@ -108,20 +106,24 @@ let isProcessing = false;
 let chatHistory = [];
 let currentImage = null;
 
-// Load history from local storage
-try {
-    const saved = localStorage.getItem('spibody_history');
-    if (saved) chatHistory = JSON.parse(saved);
-} catch(e) {}
-
-function renderHistory() {
-    if (chatHistory.length > 0) {
-        welcome.style.display = 'none';
-        chatHistory.forEach(msg => addMessage(msg.content, msg.role === 'user', msg.isImage || false));
+// 1. LOAD HISTORY ON STARTUP
+function loadHistory() {
+    try {
+        const saved = localStorage.getItem('spibody_history');
+        if (saved) {
+            chatHistory = JSON.parse(saved);
+            if (chatHistory.length > 0) {
+                welcome.style.display = 'none';
+                chatHistory.forEach(msg => addMessageToScreen(msg.content, msg.role === 'user', msg.isImage || false));
+            }
+        }
+    } catch(e) {
+        console.error("Failed to load history", e);
     }
 }
 
-function addMessage(text, isUser, isHtml = false) {
+// 2. ADD MESSAGE TO SCREEN
+function addMessageToScreen(text, isUser, isHtml = false) {
     welcome.style.display = 'none';
     const msg = document.createElement('div');
     msg.className = 'message ' + (isUser ? 'user' : 'bot');
@@ -151,7 +153,7 @@ function addMessage(text, isUser, isHtml = false) {
 
 function formatText(text) {
     if (!text) return '';
-    let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let html = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     html = html.replace(/\n/g, '<br>');
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/`(.*?)`/g, '<code>$1</code>');
@@ -171,8 +173,9 @@ function handleFile(event) {
     }
 }
 
+// 3. CLEAR HISTORY
 function clearChat() {
-    if(confirm('Clear all history?')) {
+    if(confirm('Clear all chat history?')) {
         chatHistory = [];
         localStorage.removeItem('spibody_history');
         chatBox.innerHTML = '';
@@ -181,11 +184,11 @@ function clearChat() {
     }
 }
 
+// 4. SEND MESSAGE
 async function send() {
     const text = userInput.value.trim();
     if ((!text && !currentImage) || isProcessing) return;
 
-    // LOCK UI
     isProcessing = true;
     sendBtn.disabled = true;
     sendBtn.textContent = '...';
@@ -195,9 +198,12 @@ async function send() {
         const hasImage = !!currentImage;
         const displayText = text || '[Image uploaded]';
         
-        // Add to UI immediately
-        addMessage(displayText, true, false);
+        // Add to screen immediately
+        addMessageToScreen(displayText, true, false);
+        
+        // Add to history array and SAVE
         chatHistory.push({role: 'user', content: displayText, isImage: hasImage});
+        localStorage.setItem('spibody_history', JSON.stringify(chatHistory));
         
         // Clear input
         userInput.value = '';
@@ -206,7 +212,7 @@ async function send() {
         const imageToSend = currentImage;
         currentImage = null;
 
-        // Show typing
+        // Show typing indicator
         const typingMsg = document.createElement('div');
         typingMsg.className = 'message bot';
         typingMsg.id = 'typing';
@@ -226,12 +232,14 @@ async function send() {
 
         if (data.error) throw new Error(data.error);
 
-        // Add AI response
-        addMessage(data.reply, false, data.is_image || false);
+        // Add AI response to screen and history
+        addMessageToScreen(data.reply, false, data.is_image || false);
         chatHistory.push({role: 'assistant', content: data.reply, isImage: data.is_image || false});
         
-        // Keep history manageable
-        if (chatHistory.length > 20) chatHistory = chatHistory.slice(-20);
+        // Keep history from getting too large (max 30 messages)
+        if (chatHistory.length > 30) {
+            chatHistory = chatHistory.slice(-30);
+        }
         localStorage.setItem('spibody_history', JSON.stringify(chatHistory));
 
     } catch (err) {
@@ -241,9 +249,10 @@ async function send() {
         errorBanner.style.display = 'block';
         setTimeout(() => errorBanner.style.display = 'none', 10000);
         
-        // Remove failed user message from history
+        // Remove failed user message from history so it can be retried
         if (chatHistory.length > 0 && chatHistory[chatHistory.length-1].role === 'user') {
             chatHistory.pop();
+            localStorage.setItem('spibody_history', JSON.stringify(chatHistory));
         }
     } finally {
         // ALWAYS UNLOCK UI
@@ -254,8 +263,8 @@ async function send() {
     }
 }
 
-// Initialize
-renderHistory();
+// Initialize app
+loadHistory();
 userInput.focus();
 </script>
 </body>
