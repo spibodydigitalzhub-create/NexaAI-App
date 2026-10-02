@@ -118,9 +118,7 @@ function loadHistory() {
                 chatHistory.forEach(msg => addMessageToScreen(msg.content, msg.role === 'user', msg.isImage || false));
             }
         }
-    } catch(e) {
-        console.error("Failed to load history", e);
-    }
+    } catch(e) { console.error("Failed to load history", e); }
 }
 
 function addMessageToScreen(text, isUser, isHtml = false) {
@@ -225,11 +223,24 @@ async function send() {
         chatBox.appendChild(typingMsg);
         chatBox.scrollTop = chatBox.scrollHeight;
 
+        // ADD TIMEOUT CONTROLLER FOR LARGE CODE GENERATION
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds
+
         const res = await fetch('/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text, history: chatHistory, image: imageToSend})
+            body: JSON.stringify({message: text, history: chatHistory, image: imageToSend}),
+            signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
+
+        // SAFETY CHECK: PREVENT HTML ERROR PAGES FROM CRASHING THE APP
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Server returned an HTML error page (likely a timeout). Try asking for a smaller part of the code.');
+        }
 
         const data = await res.json();
         typingMsg.remove();
@@ -249,7 +260,7 @@ async function send() {
         if (typing) typing.remove();
         errorBanner.textContent = 'Error: ' + err.message;
         errorBanner.style.display = 'block';
-        setTimeout(() => errorBanner.style.display = 'none', 10000);
+        setTimeout(() => errorBanner.style.display = 'none', 15000);
         
         if (chatHistory.length > 0 && chatHistory[chatHistory.length-1].role === 'user') {
             chatHistory.pop();

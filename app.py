@@ -63,11 +63,12 @@ def chat():
         else:
             model = "openrouter/auto"
 
+        # INCREASED TIMEOUT TO 120 SECONDS FOR LARGE CODE GENERATION
         res = requests.post(
             "https://openrouter.ai/api/v1/chat/completions",
             headers=headers,
             json={"model": model, "messages": messages},
-            timeout=60
+            timeout=120 
         )
 
         if res.status_code == 200:
@@ -76,6 +77,10 @@ def chat():
         else:
             return jsonify({"error": "AI Error: " + str(res.status_code)}), res.status_code
 
+    except requests.exceptions.Timeout:
+        # CATCH TIMEOUTS AND RETURN JSON INSTEAD OF CRASHING
+        return jsonify({"error": "The request took too long. For large code like landing pages, try asking for just the HTML first, then the CSS."}), 504
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
