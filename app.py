@@ -39,7 +39,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v27';
+const CACHE_NAME = 'spibody-ai-v28';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -97,8 +97,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .avatar.bot { background: transparent; }
 .avatar.bot img { width: 100%; height: 100%; object-fit: cover; }
 .avatar.user { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; font-weight: 600; font-size: 1rem; }
-
-/* VERTICALLY WIDER & LARGER BUBBLES */
 .bubble { max-width: 90%; padding: 16px 20px; border-radius: 20px; font-size: 1.05rem; line-height: 1.8; word-wrap: break-word; user-select: text; -webkit-user-select: text; }
 .message.user .bubble { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border-bottom-right-radius: 4px; }
 .message.bot .bubble { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-bottom-left-radius: 4px; box-shadow: var(--shadow-sm); }
@@ -129,8 +127,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .typing span:nth-child(2) { animation-delay: 0.2s; }
 .typing span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes bounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
-
-/* TALLER INPUT AREA */
 .input-area { background: var(--surface); border-top: 1px solid var(--border); padding: 16px; display: flex; gap: 12px; align-items: flex-end; }
 .input-wrapper { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 24px; padding: 8px 8px 8px 20px; display: flex; align-items: flex-end; transition: all 0.2s; position: relative; }
 .input-wrapper:focus-within { border-color: var(--primary); background: var(--surface); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
@@ -260,8 +256,8 @@ function removeImage() { currentImageBase64 = null; imagePreview.style.display =
 function parseMarkdown(text) { 
     if (!text) return ''; 
     let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); 
-    html = html.replace(/\n/g, '<br>');
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\\n/g, '<br>');
+    html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
     html = html.replace(/`(.*?)`/g, '<code>$1</code>');
     return html; 
 }
