@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v14';
+const CACHE_NAME = 'spibody-ai-v15';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -176,7 +176,7 @@ textarea::placeholder { color: var(--text-light); }
         <button class="action-btn" onclick="openSidebar()">☰ History</button>
         <button class="action-btn" onclick="createNewChat()">+ New</button>
         <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;opacity:0.9;">
-            <span class="status-dot"></span><span>Vision</span>
+            <span class="status-dot"></span><span>Unrestricted</span>
         </div>
     </div>
 </div>
@@ -203,7 +203,7 @@ textarea::placeholder { color: var(--text-light); }
         </div>
         <textarea id="userInput" rows="1" placeholder="Command Spibody AI..." oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
     </div>
-    <button class="send-btn" id="sendBtn" onclick="sendMessage()"></button>
+    <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
 </div>
 <div class="footer-hint">Spibody AI has vision. Upload an image to analyze it.</div>
 
@@ -310,10 +310,19 @@ function renderSidebar() {
     chats.forEach(chat => {
         const div = document.createElement('div');
         div.className = 'chat-item ' + (chat.id === activeChatId ? 'active' : '');
-        div.innerHTML = \`
-            <div class="chat-title" onclick="loadChat('\${chat.id}')">\${chat.title}</div>
-            <button class="delete-chat" onclick="deleteChat('\${chat.id}', event)">🗑️</button>
-        \`;
+        
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'chat-title';
+        titleDiv.textContent = chat.title;
+        titleDiv.onclick = function() { loadChat(chat.id); };
+        
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-chat';
+        deleteBtn.textContent = '🗑️';
+        deleteBtn.onclick = function(event) { deleteChat(chat.id, event); };
+        
+        div.appendChild(titleDiv);
+        div.appendChild(deleteBtn);
         list.appendChild(div);
     });
 }
@@ -459,7 +468,6 @@ async function sendMessage() {
     const currentChat = chats.find(c => c.id === activeChatId);
     const hasImage = !!currentImageBase64;
     
-    // Save to history (without base64 to prevent localStorage crash)
     currentChat.messages.push({role: 'user', content: text || '[Image uploaded]', hasImage: hasImage});
     appendMessage(text || '📎 [Image uploaded]', true, false, hasImage);
     
@@ -471,7 +479,7 @@ async function sendMessage() {
     
     userInput.value = '';
     userInput.style.height = 'auto';
-    removeImage(); // Clear preview
+    removeImage();
     addTyping();
     
     try {
@@ -488,7 +496,7 @@ async function sendMessage() {
             signal: controller.signal
         });
         clearTimeout(timeoutId);
-        if (!res.ok) throw new Error(\`Server error: \${res.status}\`);
+        if (!res.ok) throw new Error('Server error: ' + res.status);
         
         const data = await res.json();
         removeTyping();
@@ -513,7 +521,7 @@ async function sendMessage() {
     } finally {
         isProcessing = false;
         sendBtn.disabled = false;
-        sendBtn.innerHTML = '';
+        sendBtn.innerHTML = '➤';
         userInput.focus();
     }
 }
@@ -534,7 +542,7 @@ def chat():
         data = request.json
         user_message = data.get('message', '')
         history = data.get('history', [])
-        image_data = data.get('image') # Base64 image string
+        image_data = data.get('image')
         
         if not user_message and not image_data:
             return jsonify({"error": "Empty message"})
@@ -550,27 +558,18 @@ def chat():
             return jsonify({"error": "API key missing on server"})
         
         headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json", "HTTP-Referer": "http://localhost", "X-Title": "SpibodyAI"}
-        
-        # Build messages array
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         
         for msg in history:
-            # Reconstruct history. If it had an image, we can't show it to the AI again easily without storing base64, 
-            # so we just pass the text context for memory.
             messages.append({"role": msg['role'], "content": msg['content']})
         
-        # Handle the CURRENT message with image if present
         if image_data:
-            # Use Vision Model
             content = []
             if user_message:
                 content.append({"type": "text", "text": user_message})
             content.append({"type": "image_url", "image_url": {"url": image_data}})
-            
-            # Replace the last user message with the multimodal version
             messages[-1] = {"role": "user", "content": content}
             
-            # Use Llama 3.2 Vision (Free on OpenRouter)
             vision_model = "meta-llama/llama-3.2-11b-vision-instruct:free"
             try:
                 res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": vision_model, "messages": messages}, timeout=60)
@@ -579,8 +578,12 @@ def chat():
             except Exception:
                 pass
         else:
-            # Standard Text Models
-            models_to_try = ["openrouter/auto", "cohere/north-mini-code:free", "meta-llama/llama-3-8b-instruct:free"]
+            # STRICTLY UNCENSORED MODELS ONLY
+            models_to_try = [
+                "undi95/toppy-m-7b:free",
+                "gryphe/mythomax-l2-13b:free",
+                "huggingfaceh4/zephyr-7b-beta:free"
+            ]
             for model in models_to_try:
                 try:
                     res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=50)
