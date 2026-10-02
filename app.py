@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v15';
+const CACHE_NAME = 'spibody-ai-v16';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -131,13 +131,9 @@ textarea::placeholder { color: var(--text-light); }
 .upload-btn:hover { background: var(--border); color: var(--primary); }
 .footer-hint { text-align: center; font-size: 0.75rem; color: var(--text-light); padding: 6px; background: var(--surface); }
 .error-banner { background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; text-align: center; margin: 10px 16px; animation: fadeIn 0.3s ease-out; }
-
-/* Image Preview */
 .image-preview-container { position: absolute; bottom: 60px; left: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; box-shadow: var(--shadow-md); display: none; z-index: 10; }
 .image-preview-container img { max-height: 100px; border-radius: 8px; display: block; }
 .remove-image { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; background: #ef4444; color: white; border: 2px solid var(--surface); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
-
-/* Sidebar Styles */
 .sidebar { position: fixed; top: 0; left: -300px; width: 280px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); z-index: 1000; transition: left 0.3s ease; display: flex; flex-direction: column; box-shadow: var(--shadow-md); }
 .sidebar.open { left: 0; }
 .sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
@@ -230,302 +226,69 @@ function init() {
             activeChatId = data.activeChatId || null;
         }
     } catch (e) { console.error("Memory load error:", e); }
-    
-    if (!activeChatId || !chats.find(c => c.id === activeChatId)) {
-        createNewChat();
-    } else {
-        renderCurrentChat();
-    }
+    if (!activeChatId || !chats.find(c => c.id === activeChatId)) { createNewChat(); } 
+    else { renderCurrentChat(); }
     userInput.focus();
 }
-
-function saveAllChats() {
-    try { localStorage.setItem('spibody_all_chats', JSON.stringify({ activeChatId: activeChatId, chats: chats })); } catch (e) {}
-}
-
-function createNewChat() {
-    saveCurrentChat();
-    const newId = 'chat_' + Date.now();
-    chats.unshift({ id: newId, title: 'New Chat', messages: [], timestamp: Date.now() });
-    activeChatId = newId;
-    saveAllChats();
-    renderCurrentChat();
-    closeSidebar();
-}
-
-function saveCurrentChat() {
-    const chat = chats.find(c => c.id === activeChatId);
-    if (chat) {
-        if (chat.messages.length > 0 && chat.title === 'New Chat') {
-            const firstUserMsg = chat.messages.find(m => m.role === 'user');
-            if (firstUserMsg) {
-                chat.title = firstUserMsg.content.substring(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
-            }
-        }
-        chat.timestamp = Date.now();
-        chats = chats.filter(c => c.id !== activeChatId);
-        chats.unshift(chat);
-        saveAllChats();
-    }
-}
-
-function loadChat(chatId) {
-    saveCurrentChat();
-    activeChatId = chatId;
-    saveAllChats();
-    renderCurrentChat();
-    closeSidebar();
-}
-
-function deleteChat(chatId, event) {
-    event.stopPropagation();
-    chats = chats.filter(c => c.id !== chatId);
-    if (activeChatId === chatId) {
-        if (chats.length > 0) activeChatId = chats[0].id;
-        else { createNewChat(); return; }
-    }
-    saveAllChats();
-    renderCurrentChat();
-}
-
-function renderCurrentChat() {
-    const chat = chats.find(c => c.id === activeChatId);
-    chatBox.innerHTML = '';
-    if (!chat || chat.messages.length === 0) {
-        chatBox.appendChild(welcome);
-        welcome.style.display = 'flex';
-    } else {
-        welcome.style.display = 'none';
-        chat.messages.forEach(msg => {
-            try { chatBox.appendChild(createMessageElement(msg.content, msg.role === 'user', false, msg.hasImage)); } catch(e) {}
-        });
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-    renderSidebar();
-}
-
-function renderSidebar() {
-    const list = document.getElementById('chatList');
-    list.innerHTML = '';
-    chats.forEach(chat => {
-        const div = document.createElement('div');
-        div.className = 'chat-item ' + (chat.id === activeChatId ? 'active' : '');
-        
-        const titleDiv = document.createElement('div');
-        titleDiv.className = 'chat-title';
-        titleDiv.textContent = chat.title;
-        titleDiv.onclick = function() { loadChat(chat.id); };
-        
-        const deleteBtn = document.createElement('button');
-        deleteBtn.className = 'delete-chat';
-        deleteBtn.textContent = '🗑️';
-        deleteBtn.onclick = function(event) { deleteChat(chat.id, event); };
-        
-        div.appendChild(titleDiv);
-        div.appendChild(deleteBtn);
-        list.appendChild(div);
-    });
-}
-
-function openSidebar() {
-    document.getElementById('sidebar').classList.add('open');
-    document.getElementById('overlay').classList.add('open');
-    renderSidebar();
-}
-
-function closeSidebar() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('overlay').classList.remove('open');
-}
-
+function saveAllChats() { try { localStorage.setItem('spibody_all_chats', JSON.stringify({ activeChatId: activeChatId, chats: chats })); } catch (e) {} }
+function createNewChat() { saveCurrentChat(); const newId = 'chat_' + Date.now(); chats.unshift({ id: newId, title: 'New Chat', messages: [], timestamp: Date.now() }); activeChatId = newId; saveAllChats(); renderCurrentChat(); closeSidebar(); }
+function saveCurrentChat() { const chat = chats.find(c => c.id === activeChatId); if (chat) { if (chat.messages.length > 0 && chat.title === 'New Chat') { const firstUserMsg = chat.messages.find(m => m.role === 'user'); if (firstUserMsg) { chat.title = firstUserMsg.content.substring(0, 30) + (firstUserMsg.content.length > 30 ? '...' : ''); } } chat.timestamp = Date.now(); chats = chats.filter(c => c.id !== activeChatId); chats.unshift(chat); saveAllChats(); } }
+function loadChat(chatId) { saveCurrentChat(); activeChatId = chatId; saveAllChats(); renderCurrentChat(); closeSidebar(); }
+function deleteChat(chatId, event) { event.stopPropagation(); chats = chats.filter(c => c.id !== chatId); if (activeChatId === chatId) { if (chats.length > 0) activeChatId = chats[0].id; else { createNewChat(); return; } } saveAllChats(); renderCurrentChat(); }
+function renderCurrentChat() { const chat = chats.find(c => c.id === activeChatId); chatBox.innerHTML = ''; if (!chat || chat.messages.length === 0) { chatBox.appendChild(welcome); welcome.style.display = 'flex'; } else { welcome.style.display = 'none'; chat.messages.forEach(msg => { try { chatBox.appendChild(createMessageElement(msg.content, msg.role === 'user', false, msg.hasImage)); } catch(e) {} }); chatBox.scrollTop = chatBox.scrollHeight; } renderSidebar(); }
+function renderSidebar() { const list = document.getElementById('chatList'); list.innerHTML = ''; chats.forEach(chat => { const div = document.createElement('div'); div.className = 'chat-item ' + (chat.id === activeChatId ? 'active' : ''); const titleDiv = document.createElement('div'); titleDiv.className = 'chat-title'; titleDiv.textContent = chat.title; titleDiv.onclick = function() { loadChat(chat.id); }; const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-chat'; deleteBtn.textContent = '️'; deleteBtn.onclick = function(event) { deleteChat(chat.id, event); }; div.appendChild(titleDiv); div.appendChild(deleteBtn); list.appendChild(div); }); }
+function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('open'); renderSidebar(); }
+function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); }
 function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
 function handleKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
 function getTime() { return new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); }
-function showError(msg) {
-    errorBanner.textContent = msg;
-    errorBanner.style.display = 'block';
-    setTimeout(() => { errorBanner.style.display = 'none'; }, 10000);
-}
-
-function handleImageUpload(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            currentImageBase64 = e.target.result;
-            previewImg.src = currentImageBase64;
-            imagePreview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-    }
-}
-
-function removeImage() {
-    currentImageBase64 = null;
-    imagePreview.style.display = 'none';
-    document.getElementById('imageInput').value = '';
-}
-
-function parseMarkdown(text) {
-    try {
-        if (!text) return '';
-        let html = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(match, lang, code) {
-            const langLabel = lang ? '<div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;font-family:Inter,sans-serif;">' + lang + '</div>' : '';
-            return '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>' + langLabel + '<code>' + code.trim() + '</code></pre>';
-        });
-        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-        html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
-        html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
-        html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
-        html = html.replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');
-        html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
-        html = html.replace(/\\*(.*?)\\*/g, '<em>$1</em>');
-        html = html.replace(/^&gt; (.*$)/gm, '<blockquote>$1</blockquote>');
-        html = html.replace(/^---$/gm, '<hr>');
-        html = html.replace(/^[\\-\\*] (.*$)/gm, '<li>$1</li>');
-        html = html.replace(/(<li>.*<\\/li>\\s*)+/g, '<ul>$&</ul>');
-        html = html.replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>');
-        html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>');
-        const paragraphs = html.split(/\\n\\n+/);
-        html = paragraphs.map(p => {
-            p = p.trim();
-            if (!p) return '';
-            if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || p.startsWith('<pre') || p.startsWith('<blockquote') || p.startsWith('<hr')) return p;
-            p = p.replace(/\\n/g, '<br>');
-            return '<p>' + p + '</p>';
-        }).join('');
-        return html;
-    } catch (e) { return String(text).replace(/\\n/g, '<br>'); }
-}
-
-function copyCode(btn) {
-    try {
-        const code = btn.parentElement.querySelector('code').textContent;
-        navigator.clipboard.writeText(code).then(() => {
-            btn.textContent = 'Copied!'; btn.classList.add('copied');
-            setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
-        }).catch(() => {
-            const textarea = document.createElement('textarea');
-            textarea.value = code; document.body.appendChild(textarea); textarea.select();
-            document.execCommand('copy'); document.body.removeChild(textarea);
-            btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-        });
-    } catch (e) {}
-}
-
-function createMessageElement(text, isUser, isHtml = false, hasImage = false) {
-    const msg = document.createElement('div');
-    msg.className = 'message ' + (isUser ? 'user' : 'bot');
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
-    avatar.innerHTML = isUser ? '👤' : '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">';
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    
-    let contentHtml = isHtml ? String(text) : parseMarkdown(text);
-    if (hasImage) {
-        contentHtml = '<div style="margin-bottom:8px;font-size:0.85rem;opacity:0.8;">📎 [Image uploaded]</div>' + contentHtml;
-    }
-    bubble.innerHTML = contentHtml;
-    
-    const timeEl = document.createElement('div');
-    timeEl.className = 'timestamp';
-    timeEl.textContent = getTime();
-    msg.appendChild(avatar);
-    const content = document.createElement('div');
-    content.style.flex = '1'; content.style.maxWidth = '75%';
-    content.appendChild(bubble); content.appendChild(timeEl);
-    msg.appendChild(content);
-    return msg;
-}
-
-function appendMessage(text, isUser, isHtml = false, hasImage = false) {
-    if (welcome) welcome.style.display = 'none';
-    chatBox.appendChild(createMessageElement(text, isUser, isHtml, hasImage));
-    chatBox.scrollTop = chatBox.scrollHeight;
-}
-
-function addTyping() {
-    if (welcome) welcome.style.display = 'none';
-    const msg = document.createElement('div');
-    msg.className = 'message bot'; msg.id = 'typing-msg';
-    msg.innerHTML = '<div class="avatar bot"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI"></div><div style="flex:1;max-width:75%"><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>';
-    chatBox.appendChild(msg); chatBox.scrollTop = chatBox.scrollHeight;
-}
-
+function showError(msg) { errorBanner.textContent = msg; errorBanner.style.display = 'block'; setTimeout(() => { errorBanner.style.display = 'none'; }, 10000); }
+function handleImageUpload(event) { const file = event.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (e) => { currentImageBase64 = e.target.result; previewImg.src = currentImageBase64; imagePreview.style.display = 'block'; }; reader.readAsDataURL(file); } }
+function removeImage() { currentImageBase64 = null; imagePreview.style.display = 'none'; document.getElementById('imageInput').value = ''; }
+function parseMarkdown(text) { try { if (!text) return ''; let html = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(match, lang, code) { const langLabel = lang ? '<div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;font-family:Inter,sans-serif;">' + lang + '</div>' : ''; return '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>' + langLabel + '<code>' + code.trim() + '</code></pre>'; }); html = html.replace(/`([^`]+)`/g, '<code>$1</code>'); html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>'); html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>'); html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>'); html = html.replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>'); html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>'); html = html.replace(/\\*(.*?)\\*/g, '<em>$1</em>'); html = html.replace(/^&gt; (.*$)/gm, '<blockquote>$1</blockquote>'); html = html.replace(/^---$/gm, '<hr>'); html = html.replace(/^[\\-\\*] (.*$)/gm, '<li>$1</li>'); html = html.replace(/(<li>.*<\\/li>\\s*)+/g, '<ul>$&</ul>'); html = html.replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>'); html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>'); const paragraphs = html.split(/\\n\\n+/); html = paragraphs.map(p => { p = p.trim(); if (!p) return ''; if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || p.startsWith('<pre') || p.startsWith('<blockquote') || p.startsWith('<hr')) return p; p = p.replace(/\\n/g, '<br>'); return '<p>' + p + '</p>'; }).join(''); return html; } catch (e) { return String(text).replace(/\\n/g, '<br>'); } }
+function copyCode(btn) { try { const code = btn.parentElement.querySelector('code').textContent; navigator.clipboard.writeText(code).then(() => { btn.textContent = 'Copied!'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000); }).catch(() => { const textarea = document.createElement('textarea'); textarea.value = code; document.body.appendChild(textarea); textarea.select(); document.execCommand('copy'); document.body.removeChild(textarea); btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000); }); } catch (e) {} }
+function createMessageElement(text, isUser, isHtml = false, hasImage = false) { const msg = document.createElement('div'); msg.className = 'message ' + (isUser ? 'user' : 'bot'); const avatar = document.createElement('div'); avatar.className = 'avatar ' + (isUser ? 'user' : 'bot'); avatar.innerHTML = isUser ? '👤' : '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">'; const bubble = document.createElement('div'); bubble.className = 'bubble'; let contentHtml = isHtml ? String(text) : parseMarkdown(text); if (hasImage) { contentHtml = '<div style="margin-bottom:8px;font-size:0.85rem;opacity:0.8;">📎 [Image uploaded]</div>' + contentHtml; } bubble.innerHTML = contentHtml; const timeEl = document.createElement('div'); timeEl.className = 'timestamp'; timeEl.textContent = getTime(); msg.appendChild(avatar); const content = document.createElement('div'); content.style.flex = '1'; content.style.maxWidth = '75%'; content.appendChild(bubble); content.appendChild(timeEl); msg.appendChild(content); return msg; }
+function appendMessage(text, isUser, isHtml = false, hasImage = false) { if (welcome) welcome.style.display = 'none'; chatBox.appendChild(createMessageElement(text, isUser, isHtml, hasImage)); chatBox.scrollTop = chatBox.scrollHeight; }
+function addTyping() { if (welcome) welcome.style.display = 'none'; const msg = document.createElement('div'); msg.className = 'message bot'; msg.id = 'typing-msg'; msg.innerHTML = '<div class="avatar bot"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI"></div><div style="flex:1;max-width:75%"><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>'; chatBox.appendChild(msg); chatBox.scrollTop = chatBox.scrollHeight; }
 function removeTyping() { const t = document.getElementById('typing-msg'); if (t) t.remove(); }
 
 async function sendMessage() {
     const text = userInput.value.trim();
     if ((!text && !currentImageBase64) || isProcessing) return;
-    
-    isProcessing = true;
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = '⏳';
-    errorBanner.style.display = 'none';
-    
+    isProcessing = true; sendBtn.disabled = true; sendBtn.innerHTML = '⏳'; errorBanner.style.display = 'none';
     const currentChat = chats.find(c => c.id === activeChatId);
     const hasImage = !!currentImageBase64;
-    
     currentChat.messages.push({role: 'user', content: text || '[Image uploaded]', hasImage: hasImage});
     appendMessage(text || '📎 [Image uploaded]', true, false, hasImage);
-    
-    if (currentChat.messages.length === 1) {
-        currentChat.title = (text || 'Image Analysis').substring(0, 30) + ((text || '').length > 30 ? '...' : '');
-        renderSidebar();
-    }
+    if (currentChat.messages.length === 1) { currentChat.title = (text || 'Image Analysis').substring(0, 30) + ((text || '').length > 30 ? '...' : ''); renderSidebar(); }
     saveAllChats();
-    
-    userInput.value = '';
-    userInput.style.height = 'auto';
-    removeImage();
-    addTyping();
-    
+    userInput.value = ''; userInput.style.height = 'auto'; removeImage(); addTyping();
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
-        
         const payload = { message: text, history: currentChat.messages };
         if (hasImage) payload.image = currentImageBase64;
-        
-        const res = await fetch('/chat', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(payload),
-            signal: controller.signal
-        });
+        const res = await fetch('/chat', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), signal: controller.signal });
         clearTimeout(timeoutId);
         if (!res.ok) throw new Error('Server error: ' + res.status);
-        
         const data = await res.json();
         removeTyping();
         if (data.error) throw new Error(data.error);
-        
         currentChat.messages.push({role: 'assistant', content: data.reply});
         if (currentChat.messages.length > 20) currentChat.messages = currentChat.messages.slice(-20);
         saveAllChats();
-        
         if (data.is_image) appendMessage(data.reply, false, true);
         else appendMessage(data.reply, false);
-        
     } catch (err) {
-        removeTyping();
-        console.error("Chat error:", err);
+        removeTyping(); console.error("Chat error:", err);
         let errMsg = "Connection failed. Please try again.";
         if (err.name === 'AbortError') errMsg = "Request timed out. The server might be busy.";
         else if (err.message.includes('502')) errMsg = "Server temporarily unavailable. Wait 10 seconds and try again.";
+        else if (err.message.includes('503')) errMsg = "AI models are busy. Wait a moment and try again.";
         showError(errMsg);
-        currentChat.messages.pop();
-        saveAllChats();
-    } finally {
-        isProcessing = false;
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = '➤';
-        userInput.focus();
-    }
+        currentChat.messages.pop(); saveAllChats();
+    } finally { isProcessing = false; sendBtn.disabled = false; sendBtn.innerHTML = '➤'; userInput.focus(); }
 }
-
 init();
 </script>
 </body>
@@ -578,24 +341,28 @@ def chat():
             except Exception:
                 pass
         else:
-            # STRICTLY UNCENSORED MODELS ONLY
+            # UPDATED: STRICTLY UNCENSORED & ACTIVE MODELS FOR 2024/2025
             models_to_try = [
-                "undi95/toppy-m-7b:free",
-                "gryphe/mythomax-l2-13b:free",
-                "huggingfaceh4/zephyr-7b-beta:free"
+                "cognitivecomputations/dolphin-mixtral-8x7b:free", # Specifically uncensored model
+                "qwen/qwen-2.5-7b-instruct:free",                 # Highly compliant
+                "meta-llama/llama-3-8b-instruct:free"             # Reliable fallback
             ]
             for model in models_to_try:
                 try:
+                    print(f"Trying model: {model}")
                     res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=50)
+                    print(f"Model {model} returned: {res.status_code}")
                     if res.status_code == 200:
                         return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
                     elif res.status_code == 429:
                         continue
-                except Exception:
+                except Exception as e:
+                    print(f"Model {model} failed: {e}")
                     continue
                     
         return jsonify({"error": "All AI models are currently busy. Please try again in a moment."}), 503
     except Exception as e:
+        print(f"Internal error: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 if __name__ == '__main__':
