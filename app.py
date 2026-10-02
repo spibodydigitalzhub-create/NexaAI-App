@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify, render_template_string
 import requests
 import os
 import urllib.parse
-import json
 
 app = Flask(__name__)
 API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
@@ -296,7 +295,7 @@ function removeImage() { currentImageBase64 = null; imagePreview.style.display =
 
 function parseMarkdown(text) { 
     if (!text) return ''; 
-    let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); 
+    let html = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); 
     html = html.replace(/\n/g, '<br>');
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/`(.*?)`/g, '<code>$1</code>');
@@ -348,74 +347,81 @@ function removeTyping() { const t = document.getElementById('typing-msg'); if (t
 async function sendMessage() {
     const text = userInput.value.trim();
     if ((!text && !currentImageBase64) || isProcessing) return;
-    
+
+    // LOCK UI IMMEDIATELY
     isProcessing = true; 
     sendBtn.disabled = true; 
     sendBtn.innerHTML = '...'; 
     errorBanner.style.display = 'none';
-    
-    const currentChat = chats.find(c => c.id === activeChatId);
-    const hasImage = !!currentImageBase64;
-    
-    currentChat.messages.push({role: 'user', content: text || '[Image uploaded]', hasImage: hasImage});
-    appendMessage(text || '[Image uploaded]', true, false, hasImage);
-    
-    if (currentChat.messages.length === 1) { 
-        currentChat.title = (text || 'Image Analysis').substring(0, 30) + ((text || '').length > 30 ? '...' : ''); 
-        renderSidebar(); 
-    }
-    saveAllChats();
-    
-    userInput.value = ''; 
-    userInput.style.height = 'auto'; 
-    removeImage(); 
-    addTyping();
-    
+
     try {
+        const currentChat = chats.find(c => c.id === activeChatId);
+        if (!currentChat) throw new Error("No active chat found");
+
+        const hasImage = !!currentImageBase64;
+        currentChat.messages.push({role: 'user', content: text || '[Image uploaded]', hasImage: hasImage});
+        appendMessage(text || '[Image uploaded]', true, false, hasImage);
+
+        if (currentChat.messages.length === 1) { 
+            currentChat.title = (text || 'Image Analysis').substring(0, 30) + ((text || '').length > 30 ? '...' : ''); 
+            renderSidebar(); 
+        }
+        saveAllChats();
+
+        userInput.value = ''; 
+        userInput.style.height = 'auto'; 
+        removeImage(); 
+        addTyping();
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
-        
+
         const payload = { message: text, history: currentChat.messages };
         if (hasImage) payload.image = currentImageBase64;
-        
+
         const res = await fetch('/chat', { 
             method: 'POST', 
             headers: {'Content-Type': 'application/json'}, 
             body: JSON.stringify(payload), 
             signal: controller.signal 
         });
-        
+
         clearTimeout(timeoutId);
-        
+
         if (!res.ok) {
             const errorText = await res.text();
             throw new Error('Server error: ' + res.status + ' - ' + errorText.substring(0, 100));
         }
-        
+
         const data = await res.json();
         removeTyping();
-        
+
         if (data.error) throw new Error(data.error);
-        
+
         currentChat.messages.push({role: 'assistant', content: data.reply});
         if (currentChat.messages.length > 20) currentChat.messages = currentChat.messages.slice(-20);
         saveAllChats();
-        
+
         if (data.is_image) appendMessage(data.reply, false, true);
         else appendMessage(data.reply, false);
-        
+
     } catch (err) {
         removeTyping(); 
         console.error("Chat error:", err);
         let errMsg = "Connection failed. Please try again.";
-        if (err.name === 'AbortError') errMsg = "Request timed out. The server might be busy.";
-        else if (err.message.includes('502')) errMsg = "Server temporarily unavailable. Wait 10 seconds and try again.";
-        else if (err.message.includes('503')) errMsg = "AI models are busy. Wait a moment and try again.";
-        else errMsg = "Error: " + err.message;
+        if (err.name === 'AbortError') errMsg = "Request timed out.";
+        else if (err.message && err.message.includes('502')) errMsg = "Server unavailable.";
+        else if (err.message && err.message.includes('503')) errMsg = "AI models busy.";
+        else errMsg = "Error: " + (err.message || err);
         showError(errMsg);
-        currentChat.messages.pop(); 
-        saveAllChats();
+
+        const currentChat = chats.find(c => c.id === activeChatId);
+        if (currentChat && currentChat.messages.length > 0 && currentChat.messages[currentChat.messages.length - 1].role === 'user') {
+            currentChat.messages.pop();
+            saveAllChats();
+        }
     } finally { 
+        // ALWAYS UNLOCK UI
         isProcessing = false; 
         sendBtn.disabled = false; 
         sendBtn.innerHTML = '>'; 
