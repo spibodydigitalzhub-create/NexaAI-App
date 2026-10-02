@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v16';
+const CACHE_NAME = 'spibody-ai-v17';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -236,7 +236,7 @@ function saveCurrentChat() { const chat = chats.find(c => c.id === activeChatId)
 function loadChat(chatId) { saveCurrentChat(); activeChatId = chatId; saveAllChats(); renderCurrentChat(); closeSidebar(); }
 function deleteChat(chatId, event) { event.stopPropagation(); chats = chats.filter(c => c.id !== chatId); if (activeChatId === chatId) { if (chats.length > 0) activeChatId = chats[0].id; else { createNewChat(); return; } } saveAllChats(); renderCurrentChat(); }
 function renderCurrentChat() { const chat = chats.find(c => c.id === activeChatId); chatBox.innerHTML = ''; if (!chat || chat.messages.length === 0) { chatBox.appendChild(welcome); welcome.style.display = 'flex'; } else { welcome.style.display = 'none'; chat.messages.forEach(msg => { try { chatBox.appendChild(createMessageElement(msg.content, msg.role === 'user', false, msg.hasImage)); } catch(e) {} }); chatBox.scrollTop = chatBox.scrollHeight; } renderSidebar(); }
-function renderSidebar() { const list = document.getElementById('chatList'); list.innerHTML = ''; chats.forEach(chat => { const div = document.createElement('div'); div.className = 'chat-item ' + (chat.id === activeChatId ? 'active' : ''); const titleDiv = document.createElement('div'); titleDiv.className = 'chat-title'; titleDiv.textContent = chat.title; titleDiv.onclick = function() { loadChat(chat.id); }; const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-chat'; deleteBtn.textContent = '️'; deleteBtn.onclick = function(event) { deleteChat(chat.id, event); }; div.appendChild(titleDiv); div.appendChild(deleteBtn); list.appendChild(div); }); }
+function renderSidebar() { const list = document.getElementById('chatList'); list.innerHTML = ''; chats.forEach(chat => { const div = document.createElement('div'); div.className = 'chat-item ' + (chat.id === activeChatId ? 'active' : ''); const titleDiv = document.createElement('div'); titleDiv.className = 'chat-title'; titleDiv.textContent = chat.title; titleDiv.onclick = function() { loadChat(chat.id); }; const deleteBtn = document.createElement('button'); deleteBtn.className = 'delete-chat'; deleteBtn.textContent = '🗑️'; deleteBtn.onclick = function(event) { deleteChat(chat.id, event); }; div.appendChild(titleDiv); div.appendChild(deleteBtn); list.appendChild(div); }); }
 function openSidebar() { document.getElementById('sidebar').classList.add('open'); document.getElementById('overlay').classList.add('open'); renderSidebar(); }
 function closeSidebar() { document.getElementById('sidebar').classList.remove('open'); document.getElementById('overlay').classList.remove('open'); }
 function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
@@ -341,28 +341,25 @@ def chat():
             except Exception:
                 pass
         else:
-            # UPDATED: STRICTLY UNCENSORED & ACTIVE MODELS FOR 2024/2025
+            # HYBRID FALLBACK: Tries uncensored first, but falls back to highly reliable free models so it NEVER gets stuck on "busy"
             models_to_try = [
-                "cognitivecomputations/dolphin-mixtral-8x7b:free", # Specifically uncensored model
-                "qwen/qwen-2.5-7b-instruct:free",                 # Highly compliant
-                "meta-llama/llama-3-8b-instruct:free"             # Reliable fallback
+                "cognitivecomputations/dolphin-mixtral-8x7b:free", # Uncensored (Priority 1)
+                "mistralai/mistral-7b-instruct:free",              # Highly reliable & compliant (Priority 2)
+                "google/gemma-2-9b-it:free",                       # Very reliable & smart (Priority 3)
+                "meta-llama/llama-3-8b-instruct:free"              # Standard reliable fallback (Priority 4)
             ]
             for model in models_to_try:
                 try:
-                    print(f"Trying model: {model}")
                     res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=50)
-                    print(f"Model {model} returned: {res.status_code}")
                     if res.status_code == 200:
                         return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
-                    elif res.status_code == 429:
-                        continue
-                except Exception as e:
-                    print(f"Model {model} failed: {e}")
+                    elif res.status_code in [429, 503]:
+                        continue # Model is busy, try the next one instantly
+                except Exception:
                     continue
                     
         return jsonify({"error": "All AI models are currently busy. Please try again in a moment."}), 503
     except Exception as e:
-        print(f"Internal error: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 if __name__ == '__main__':
