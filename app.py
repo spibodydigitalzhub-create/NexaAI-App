@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v12';
+const CACHE_NAME = 'spibody-ai-v14';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -45,10 +45,6 @@ def manifest():
 @app.route('/sw.js')
 def service_worker():
     return Response(SW_JS, mimetype='application/javascript')
-
-@app.route('/health')
-def health():
-    return jsonify({"status": "ok"})
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -79,8 +75,6 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .action-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
 .action-btn:hover { background: rgba(255,255,255,0.3); }
-.action-btn.danger { background: #ef4444; }
-.action-btn.danger:hover { background: #dc2626; }
 .status-dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 8px #4ade80; animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .chat-container { flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
@@ -127,26 +121,62 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .typing span:nth-child(3) { animation-delay: 0.4s; }
 @keyframes bounce { 0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; } 40% { transform: scale(1); opacity: 1; } }
 .input-area { background: var(--surface); border-top: 1px solid var(--border); padding: 12px 16px 16px; display: flex; gap: 10px; align-items: flex-end; }
-.input-wrapper { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 24px; padding: 4px 4px 4px 16px; display: flex; align-items: flex-end; transition: all 0.2s; }
+.input-wrapper { flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 24px; padding: 4px 4px 4px 16px; display: flex; align-items: flex-end; transition: all 0.2s; position: relative; }
 .input-wrapper:focus-within { border-color: var(--primary); background: var(--surface); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
 textarea { flex: 1; border: none; background: transparent; resize: none; outline: none; font-family: inherit; font-size: 0.95rem; padding: 10px 0; max-height: 120px; line-height: 1.4; color: var(--text); }
 textarea::placeholder { color: var(--text-light); }
 .send-btn { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); color: white; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; font-size: 1.2rem; font-weight: bold; }
 .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.upload-btn { width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0; }
+.upload-btn:hover { background: var(--border); color: var(--primary); }
 .footer-hint { text-align: center; font-size: 0.75rem; color: var(--text-light); padding: 6px; background: var(--surface); }
 .error-banner { background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; text-align: center; margin: 10px 16px; animation: fadeIn 0.3s ease-out; }
+
+/* Image Preview */
+.image-preview-container { position: absolute; bottom: 60px; left: 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; box-shadow: var(--shadow-md); display: none; z-index: 10; }
+.image-preview-container img { max-height: 100px; border-radius: 8px; display: block; }
+.remove-image { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; background: #ef4444; color: white; border: 2px solid var(--surface); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 0.8rem; font-weight: bold; }
+
+/* Sidebar Styles */
+.sidebar { position: fixed; top: 0; left: -300px; width: 280px; height: 100%; background: var(--surface); border-right: 1px solid var(--border); z-index: 1000; transition: left 0.3s ease; display: flex; flex-direction: column; box-shadow: var(--shadow-md); }
+.sidebar.open { left: 0; }
+.sidebar-header { padding: 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+.sidebar-title { font-weight: 700; font-size: 1.1rem; }
+.close-sidebar { background: none; border: none; font-size: 1.8rem; cursor: pointer; color: var(--text); line-height: 1; }
+.chat-list { flex: 1; overflow-y: auto; padding: 8px; }
+.chat-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; cursor: pointer; transition: background 0.2s; margin-bottom: 4px; }
+.chat-item:hover { background: var(--surface-2); }
+.chat-item.active { background: var(--primary); color: white; }
+.chat-item.active .delete-chat { color: white; }
+.chat-title { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.9rem; margin-right: 8px; }
+.delete-chat { background: none; border: none; cursor: pointer; font-size: 1rem; opacity: 0.6; padding: 4px; }
+.delete-chat:hover { opacity: 1; }
+.overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 999; display: none; opacity: 0; transition: opacity 0.3s ease; }
+.overlay.open { display: block; opacity: 1; }
 </style>
 </head>
 <body>
+
+<div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <span class="sidebar-title">Chat History</span>
+        <button class="close-sidebar" onclick="closeSidebar()">×</button>
+    </div>
+    <div class="chat-list" id="chatList"></div>
+    <div style="padding: 16px; border-top: 1px solid var(--border);">
+        <button class="action-btn" style="width: 100%; background: var(--primary); color: white;" onclick="createNewChat()">+ New Chat</button>
+    </div>
+</div>
 
 <div class="header">
     <div class="header-logo"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="Spibody AI"></div>
     <div class="header-title">Spibody AI</div>
     <div class="header-actions">
-        <button class="action-btn" onclick="newChat()">New Chat</button>
-        <button class="action-btn danger" onclick="forceReset()">Force Reset</button>
+        <button class="action-btn" onclick="openSidebar()">☰ History</button>
+        <button class="action-btn" onclick="createNewChat()">+ New</button>
         <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;opacity:0.9;">
-            <span class="status-dot"></span><span>Unrestricted</span>
+            <span class="status-dot"></span><span>Vision</span>
         </div>
     </div>
 </div>
@@ -155,19 +185,27 @@ textarea::placeholder { color: var(--text-light); }
     <div class="welcome" id="welcome">
         <div class="welcome-logo"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="Spibody AI"></div>
         <h1>Welcome to Spibody AI</h1>
-        <p>Your personal, unrestricted AI assistant. No filters, no refusals.</p>
+        <p>Your personal, unrestricted AI assistant. Upload images to analyze them!</p>
     </div>
 </div>
 
 <div id="errorBanner" class="error-banner" style="display:none;"></div>
 
 <div class="input-area">
+    <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageUpload(event)">
+    <button class="upload-btn" onclick="document.getElementById('imageInput').click()" title="Upload Image">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+    </button>
     <div class="input-wrapper">
+        <div class="image-preview-container" id="imagePreview">
+            <img id="previewImg" src="" alt="Preview">
+            <div class="remove-image" onclick="removeImage()">×</div>
+        </div>
         <textarea id="userInput" rows="1" placeholder="Command Spibody AI..." oninput="autoResize(this)" onkeydown="handleKeyDown(event)"></textarea>
     </div>
     <button class="send-btn" id="sendBtn" onclick="sendMessage()"></button>
 </div>
-<div class="footer-hint">Spibody AI remembers everything. Type 'image: [prompt]' for art.</div>
+<div class="footer-hint">Spibody AI has vision. Upload an image to analyze it.</div>
 
 <script>
 const chatBox = document.getElementById('chat-box');
@@ -175,48 +213,120 @@ const userInput = document.getElementById('userInput');
 const sendBtn = document.getElementById('sendBtn');
 const welcome = document.getElementById('welcome');
 const errorBanner = document.getElementById('errorBanner');
+const imagePreview = document.getElementById('imagePreview');
+const previewImg = document.getElementById('previewImg');
 
 let isProcessing = false;
-let chatHistory = [];
+let chats = [];
+let activeChatId = null;
+let currentImageBase64 = null;
 
-// Safe load
-try {
-    const saved = localStorage.getItem('spibody_history');
-    if (saved) chatHistory = JSON.parse(saved);
-} catch (e) {
-    console.error("Memory load error, clearing:", e);
-    localStorage.removeItem('spibody_history');
+function init() {
+    try {
+        const saved = localStorage.getItem('spibody_all_chats');
+        if (saved) {
+            const data = JSON.parse(saved);
+            chats = data.chats || [];
+            activeChatId = data.activeChatId || null;
+        }
+    } catch (e) { console.error("Memory load error:", e); }
+    
+    if (!activeChatId || !chats.find(c => c.id === activeChatId)) {
+        createNewChat();
+    } else {
+        renderCurrentChat();
+    }
+    userInput.focus();
 }
 
-function saveHistory() {
-    try { localStorage.setItem('spibody_history', JSON.stringify(chatHistory)); } catch (e) {}
+function saveAllChats() {
+    try { localStorage.setItem('spibody_all_chats', JSON.stringify({ activeChatId: activeChatId, chats: chats })); } catch (e) {}
 }
 
-function newChat() {
-    if(confirm("Start a new chat? Current memory will be cleared.")) {
-        chatHistory = [];
-        localStorage.removeItem('spibody_history');
-        chatBox.innerHTML = '';
+function createNewChat() {
+    saveCurrentChat();
+    const newId = 'chat_' + Date.now();
+    chats.unshift({ id: newId, title: 'New Chat', messages: [], timestamp: Date.now() });
+    activeChatId = newId;
+    saveAllChats();
+    renderCurrentChat();
+    closeSidebar();
+}
+
+function saveCurrentChat() {
+    const chat = chats.find(c => c.id === activeChatId);
+    if (chat) {
+        if (chat.messages.length > 0 && chat.title === 'New Chat') {
+            const firstUserMsg = chat.messages.find(m => m.role === 'user');
+            if (firstUserMsg) {
+                chat.title = firstUserMsg.content.substring(0, 30) + (firstUserMsg.content.length > 30 ? '...' : '');
+            }
+        }
+        chat.timestamp = Date.now();
+        chats = chats.filter(c => c.id !== activeChatId);
+        chats.unshift(chat);
+        saveAllChats();
+    }
+}
+
+function loadChat(chatId) {
+    saveCurrentChat();
+    activeChatId = chatId;
+    saveAllChats();
+    renderCurrentChat();
+    closeSidebar();
+}
+
+function deleteChat(chatId, event) {
+    event.stopPropagation();
+    chats = chats.filter(c => c.id !== chatId);
+    if (activeChatId === chatId) {
+        if (chats.length > 0) activeChatId = chats[0].id;
+        else { createNewChat(); return; }
+    }
+    saveAllChats();
+    renderCurrentChat();
+}
+
+function renderCurrentChat() {
+    const chat = chats.find(c => c.id === activeChatId);
+    chatBox.innerHTML = '';
+    if (!chat || chat.messages.length === 0) {
         chatBox.appendChild(welcome);
         welcome.style.display = 'flex';
-        errorBanner.style.display = 'none';
-    }
-}
-
-function forceReset() {
-    if(confirm("This will completely clear memory and reload the page. Continue?")) {
-        localStorage.clear();
-        location.reload();
-    }
-}
-
-function renderHistory() {
-    if (chatHistory.length > 0) {
+    } else {
         welcome.style.display = 'none';
-        chatHistory.forEach(msg => {
-            try { addMessage(msg.content, msg.role === 'user', false); } catch(e) { console.error("Render error:", e); }
+        chat.messages.forEach(msg => {
+            try { chatBox.appendChild(createMessageElement(msg.content, msg.role === 'user', false, msg.hasImage)); } catch(e) {}
         });
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
+    renderSidebar();
+}
+
+function renderSidebar() {
+    const list = document.getElementById('chatList');
+    list.innerHTML = '';
+    chats.forEach(chat => {
+        const div = document.createElement('div');
+        div.className = 'chat-item ' + (chat.id === activeChatId ? 'active' : '');
+        div.innerHTML = \`
+            <div class="chat-title" onclick="loadChat('\${chat.id}')">\${chat.title}</div>
+            <button class="delete-chat" onclick="deleteChat('\${chat.id}', event)">🗑️</button>
+        \`;
+        list.appendChild(div);
+    });
+}
+
+function openSidebar() {
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('overlay').classList.add('open');
+    renderSidebar();
+}
+
+function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('overlay').classList.remove('open');
 }
 
 function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
@@ -228,18 +338,33 @@ function showError(msg) {
     setTimeout(() => { errorBanner.style.display = 'none'; }, 10000);
 }
 
-// BULLETPROOF MARKDOWN PARSER
+function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            currentImageBase64 = e.target.result;
+            previewImg.src = currentImageBase64;
+            imagePreview.style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function removeImage() {
+    currentImageBase64 = null;
+    imagePreview.style.display = 'none';
+    document.getElementById('imageInput').value = '';
+}
+
 function parseMarkdown(text) {
     try {
         if (!text) return '';
         let html = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        
-        // Code blocks
         html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(match, lang, code) {
             const langLabel = lang ? '<div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;font-family:Inter,sans-serif;">' + lang + '</div>' : '';
             return '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>' + langLabel + '<code>' + code.trim() + '</code></pre>';
         });
-        
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
         html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
         html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
@@ -253,7 +378,6 @@ function parseMarkdown(text) {
         html = html.replace(/(<li>.*<\\/li>\\s*)+/g, '<ul>$&</ul>');
         html = html.replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>');
         html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>');
-        
         const paragraphs = html.split(/\\n\\n+/);
         html = paragraphs.map(p => {
             p = p.trim();
@@ -262,12 +386,8 @@ function parseMarkdown(text) {
             p = p.replace(/\\n/g, '<br>');
             return '<p>' + p + '</p>';
         }).join('');
-        
         return html;
-    } catch (e) {
-        console.error("Markdown parse error:", e);
-        return String(text).replace(/\\n/g, '<br>'); // Fallback to raw text with line breaks
-    }
+    } catch (e) { return String(text).replace(/\\n/g, '<br>'); }
 }
 
 function copyCode(btn) {
@@ -282,40 +402,39 @@ function copyCode(btn) {
             document.execCommand('copy'); document.body.removeChild(textarea);
             btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
         });
-    } catch (e) { console.error("Copy error:", e); }
+    } catch (e) {}
 }
 
-function addMessage(text, isUser, isHtml = false) {
-    try {
-        if (welcome) welcome.style.display = 'none';
-        const msg = document.createElement('div');
-        msg.className = 'message ' + (isUser ? 'user' : 'bot');
-        
-        const avatar = document.createElement('div');
-        avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
-        avatar.innerHTML = isUser ? '👤' : '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">';
-        
-        const bubble = document.createElement('div');
-        bubble.className = 'bubble';
-        bubble.innerHTML = isHtml ? String(text) : parseMarkdown(text);
-        
-        const timeEl = document.createElement('div');
-        timeEl.className = 'timestamp';
-        timeEl.textContent = getTime();
-        
-        msg.appendChild(avatar);
-        const content = document.createElement('div');
-        content.style.flex = '1'; content.style.maxWidth = '75%';
-        content.appendChild(bubble); content.appendChild(timeEl);
-        msg.appendChild(content);
-        
-        chatBox.appendChild(msg);
-        chatBox.scrollTop = chatBox.scrollHeight;
-    } catch (e) {
-        console.error("addMessage error:", e);
-        // Fallback: just show raw text if everything else fails
-        chatBox.innerHTML += `<div class="message bot"><div class="bubble">${String(text).replace(/\\n/g, '<br>')}</div></div>`;
+function createMessageElement(text, isUser, isHtml = false, hasImage = false) {
+    const msg = document.createElement('div');
+    msg.className = 'message ' + (isUser ? 'user' : 'bot');
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
+    avatar.innerHTML = isUser ? '👤' : '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">';
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    
+    let contentHtml = isHtml ? String(text) : parseMarkdown(text);
+    if (hasImage) {
+        contentHtml = '<div style="margin-bottom:8px;font-size:0.85rem;opacity:0.8;">📎 [Image uploaded]</div>' + contentHtml;
     }
+    bubble.innerHTML = contentHtml;
+    
+    const timeEl = document.createElement('div');
+    timeEl.className = 'timestamp';
+    timeEl.textContent = getTime();
+    msg.appendChild(avatar);
+    const content = document.createElement('div');
+    content.style.flex = '1'; content.style.maxWidth = '75%';
+    content.appendChild(bubble); content.appendChild(timeEl);
+    msg.appendChild(content);
+    return msg;
+}
+
+function appendMessage(text, isUser, isHtml = false, hasImage = false) {
+    if (welcome) welcome.style.display = 'none';
+    chatBox.appendChild(createMessageElement(text, isUser, isHtml, hasImage));
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function addTyping() {
@@ -330,60 +449,57 @@ function removeTyping() { const t = document.getElementById('typing-msg'); if (t
 
 async function sendMessage() {
     const text = userInput.value.trim();
-    if (!text || isProcessing) return;
+    if ((!text && !currentImageBase64) || isProcessing) return;
     
-    // STRICT LOCK
     isProcessing = true;
     sendBtn.disabled = true;
     sendBtn.innerHTML = '⏳';
     errorBanner.style.display = 'none';
     
-    try {
-        addMessage(text, true);
-    } catch (e) { console.error("UI error:", e); }
+    const currentChat = chats.find(c => c.id === activeChatId);
+    const hasImage = !!currentImageBase64;
     
-    chatHistory.push({role: 'user', content: text});
+    // Save to history (without base64 to prevent localStorage crash)
+    currentChat.messages.push({role: 'user', content: text || '[Image uploaded]', hasImage: hasImage});
+    appendMessage(text || '📎 [Image uploaded]', true, false, hasImage);
     
-    // AGGRESSIVE TRIM: Keep ONLY last 6 messages (3 turns) to prevent server memory crashes
-    if (chatHistory.length > 6) {
-        chatHistory = chatHistory.slice(-6);
+    if (currentChat.messages.length === 1) {
+        currentChat.title = (text || 'Image Analysis').substring(0, 30) + ((text || '').length > 30 ? '...' : '');
+        renderSidebar();
     }
-    saveHistory();
+    saveAllChats();
     
     userInput.value = '';
     userInput.style.height = 'auto';
+    removeImage(); // Clear preview
     addTyping();
     
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000);
         
+        const payload = { message: text, history: currentChat.messages };
+        if (hasImage) payload.image = currentImageBase64;
+        
         const res = await fetch('/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text, history: chatHistory}),
+            body: JSON.stringify(payload),
             signal: controller.signal
         });
-        
         clearTimeout(timeoutId);
-        
-        if (!res.ok) {
-            throw new Error(`Server error: ${res.status}`);
-        }
+        if (!res.ok) throw new Error(\`Server error: \${res.status}\`);
         
         const data = await res.json();
         removeTyping();
+        if (data.error) throw new Error(data.error);
         
-        if (data.error) {
-            throw new Error(data.error);
-        }
+        currentChat.messages.push({role: 'assistant', content: data.reply});
+        if (currentChat.messages.length > 20) currentChat.messages = currentChat.messages.slice(-20);
+        saveAllChats();
         
-        chatHistory.push({role: 'assistant', content: data.reply});
-        if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
-        saveHistory();
-        
-        if (data.is_image) addMessage(data.reply, false, true);
-        else addMessage(data.reply, false);
+        if (data.is_image) appendMessage(data.reply, false, true);
+        else appendMessage(data.reply, false);
         
     } catch (err) {
         removeTyping();
@@ -392,21 +508,17 @@ async function sendMessage() {
         if (err.name === 'AbortError') errMsg = "Request timed out. The server might be busy.";
         else if (err.message.includes('502')) errMsg = "Server temporarily unavailable. Wait 10 seconds and try again.";
         showError(errMsg);
-        
-        // Remove the failed user message so it can be retried cleanly
-        chatHistory.pop(); 
-        saveHistory();
+        currentChat.messages.pop();
+        saveAllChats();
     } finally {
-        // ALWAYS UNLOCK, NO MATTER WHAT
         isProcessing = false;
         sendBtn.disabled = false;
-        sendBtn.innerHTML = '➤';
+        sendBtn.innerHTML = '';
         userInput.focus();
     }
 }
 
-renderHistory();
-userInput.focus();
+init();
 </script>
 </body>
 </html>
@@ -422,52 +534,64 @@ def chat():
         data = request.json
         user_message = data.get('message', '')
         history = data.get('history', [])
+        image_data = data.get('image') # Base64 image string
         
-        if not user_message:
+        if not user_message and not image_data:
             return jsonify({"error": "Empty message"})
         
-        if user_message.lower().startswith('image:'):
+        if user_message and user_message.lower().startswith('image:'):
             img_prompt = user_message[6:].strip()
             encoded = urllib.parse.quote(img_prompt)
             img_url = f"https://image.pollinations.ai/prompt/{encoded}?width=768&height=768&nologo=true&seed=42"
-            html_reply = f'<div class="image-container"><img src="{img_url}" alt="Generated image"><div class="watermark">⚡ Spibody AI</div></div>'
+            html_reply = f'<div class="image-container"><img src="{img_url}" alt="Generated image"><div class="watermark"> Spibody AI</div></div>'
             return jsonify({"reply": html_reply, "is_image": True})
         
         if not API_KEY:
             return jsonify({"error": "API key missing on server"})
         
-        models_to_try = [
-            "openrouter/auto",
-            "cohere/north-mini-code:free",
-            "meta-llama/llama-3-8b-instruct:free"
-        ]
+        headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json", "HTTP-Referer": "http://localhost", "X-Title": "SpibodyAI"}
         
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + history
+        # Build messages array
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         
-        headers = {
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost",
-            "X-Title": "SpibodyAI"
-        }
+        for msg in history:
+            # Reconstruct history. If it had an image, we can't show it to the AI again easily without storing base64, 
+            # so we just pass the text context for memory.
+            messages.append({"role": msg['role'], "content": msg['content']})
         
-        for model in models_to_try:
+        # Handle the CURRENT message with image if present
+        if image_data:
+            # Use Vision Model
+            content = []
+            if user_message:
+                content.append({"type": "text", "text": user_message})
+            content.append({"type": "image_url", "image_url": {"url": image_data}})
+            
+            # Replace the last user message with the multimodal version
+            messages[-1] = {"role": "user", "content": content}
+            
+            # Use Llama 3.2 Vision (Free on OpenRouter)
+            vision_model = "meta-llama/llama-3.2-11b-vision-instruct:free"
             try:
-                res = requests.post(
-                    "https://openrouter.ai/api/v1/chat/completions", 
-                    headers=headers, 
-                    json={"model": model, "messages": messages}, 
-                    timeout=50
-                )
+                res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": vision_model, "messages": messages}, timeout=60)
                 if res.status_code == 200:
                     return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
-                elif res.status_code == 429:
-                    continue
             except Exception:
-                continue
-        
+                pass
+        else:
+            # Standard Text Models
+            models_to_try = ["openrouter/auto", "cohere/north-mini-code:free", "meta-llama/llama-3-8b-instruct:free"]
+            for model in models_to_try:
+                try:
+                    res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=50)
+                    if res.status_code == 200:
+                        return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
+                    elif res.status_code == 429:
+                        continue
+                except Exception:
+                    continue
+                    
         return jsonify({"error": "All AI models are currently busy. Please try again in a moment."}), 503
-
     except Exception as e:
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
