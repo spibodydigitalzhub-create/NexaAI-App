@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v17';
+const CACHE_NAME = 'spibody-ai-v18';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -242,7 +242,7 @@ function closeSidebar() { document.getElementById('sidebar').classList.remove('o
 function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
 function handleKeyDown(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
 function getTime() { return new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}); }
-function showError(msg) { errorBanner.textContent = msg; errorBanner.style.display = 'block'; setTimeout(() => { errorBanner.style.display = 'none'; }, 10000); }
+function showError(msg) { errorBanner.textContent = msg; errorBanner.style.display = 'block'; setTimeout(() => { errorBanner.style.display = 'none'; }, 15000); }
 function handleImageUpload(event) { const file = event.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (e) => { currentImageBase64 = e.target.result; previewImg.src = currentImageBase64; imagePreview.style.display = 'block'; }; reader.readAsDataURL(file); } }
 function removeImage() { currentImageBase64 = null; imagePreview.style.display = 'none'; document.getElementById('imageInput').value = ''; }
 function parseMarkdown(text) { try { if (!text) return ''; let html = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(match, lang, code) { const langLabel = lang ? '<div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;font-family:Inter,sans-serif;">' + lang + '</div>' : ''; return '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>' + langLabel + '<code>' + code.trim() + '</code></pre>'; }); html = html.replace(/`([^`]+)`/g, '<code>$1</code>'); html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>'); html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>'); html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>'); html = html.replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>'); html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>'); html = html.replace(/\\*(.*?)\\*/g, '<em>$1</em>'); html = html.replace(/^&gt; (.*$)/gm, '<blockquote>$1</blockquote>'); html = html.replace(/^---$/gm, '<hr>'); html = html.replace(/^[\\-\\*] (.*$)/gm, '<li>$1</li>'); html = html.replace(/(<li>.*<\\/li>\\s*)+/g, '<ul>$&</ul>'); html = html.replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>'); html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>'); const paragraphs = html.split(/\\n\\n+/); html = paragraphs.map(p => { p = p.trim(); if (!p) return ''; if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || p.startsWith('<pre') || p.startsWith('<blockquote') || p.startsWith('<hr')) return p; p = p.replace(/\\n/g, '<br>'); return '<p>' + p + '</p>'; }).join(''); return html; } catch (e) { return String(text).replace(/\\n/g, '<br>'); } }
@@ -284,7 +284,8 @@ async function sendMessage() {
         let errMsg = "Connection failed. Please try again.";
         if (err.name === 'AbortError') errMsg = "Request timed out. The server might be busy.";
         else if (err.message.includes('502')) errMsg = "Server temporarily unavailable. Wait 10 seconds and try again.";
-        else if (err.message.includes('503')) errMsg = "AI models are busy. Wait a moment and try again.";
+        else if (err.message.includes('503')) errMsg = err.message; // Show the detailed backend error
+        else errMsg = "Error: " + err.message;
         showError(errMsg);
         currentChat.messages.pop(); saveAllChats();
     } finally { isProcessing = false; sendBtn.disabled = false; sendBtn.innerHTML = '➤'; userInput.focus(); }
@@ -318,7 +319,7 @@ def chat():
             return jsonify({"reply": html_reply, "is_image": True})
         
         if not API_KEY:
-            return jsonify({"error": "API key missing on server"})
+            return jsonify({"error": "API key missing on server. Check Render Environment Variables."})
         
         headers = {"Authorization": f"Bearer {API_KEY}", "Content-Type": "application/json", "HTTP-Referer": "http://localhost", "X-Title": "SpibodyAI"}
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -338,27 +339,29 @@ def chat():
                 res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": vision_model, "messages": messages}, timeout=60)
                 if res.status_code == 200:
                     return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
-            except Exception:
-                pass
+                else:
+                    return jsonify({"error": f"Vision model failed: {res.status_code} - {res.text[:100]}"}), res.status_code
+            except Exception as e:
+                return jsonify({"error": f"Vision model error: {str(e)}"}), 500
         else:
-            # HYBRID FALLBACK: Tries uncensored first, but falls back to highly reliable free models so it NEVER gets stuck on "busy"
             models_to_try = [
-                "cognitivecomputations/dolphin-mixtral-8x7b:free", # Uncensored (Priority 1)
-                "mistralai/mistral-7b-instruct:free",              # Highly reliable & compliant (Priority 2)
-                "google/gemma-2-9b-it:free",                       # Very reliable & smart (Priority 3)
-                "meta-llama/llama-3-8b-instruct:free"              # Standard reliable fallback (Priority 4)
+                "cognitivecomputations/dolphin-mixtral-8x7b:free",
+                "mistralai/mistral-7b-instruct:free",
+                "google/gemma-2-9b-it:free",
+                "meta-llama/llama-3-8b-instruct:free"
             ]
+            last_error = "Unknown error"
             for model in models_to_try:
                 try:
                     res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=50)
                     if res.status_code == 200:
                         return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
-                    elif res.status_code in [429, 503]:
-                        continue # Model is busy, try the next one instantly
-                except Exception:
-                    continue
+                    else:
+                        last_error = f"{model} returned {res.status_code}: {res.text[:100]}"
+                except Exception as e:
+                    last_error = f"{model} failed: {str(e)}"
                     
-        return jsonify({"error": "All AI models are currently busy. Please try again in a moment."}), 503
+            return jsonify({"error": f"All models busy. Last error: {last_error}"}), 503
     except Exception as e:
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
