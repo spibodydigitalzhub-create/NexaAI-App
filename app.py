@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v18';
+const CACHE_NAME = 'spibody-ai-v19';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -284,7 +284,7 @@ async function sendMessage() {
         let errMsg = "Connection failed. Please try again.";
         if (err.name === 'AbortError') errMsg = "Request timed out. The server might be busy.";
         else if (err.message.includes('502')) errMsg = "Server temporarily unavailable. Wait 10 seconds and try again.";
-        else if (err.message.includes('503')) errMsg = err.message; // Show the detailed backend error
+        else if (err.message.includes('503')) errMsg = err.message;
         else errMsg = "Error: " + err.message;
         showError(errMsg);
         currentChat.messages.pop(); saveAllChats();
@@ -344,16 +344,18 @@ def chat():
             except Exception as e:
                 return jsonify({"error": f"Vision model error: {str(e)}"}), 500
         else:
+            # REORDERED: Most stable models first, uncensored models last
             models_to_try = [
-                "cognitivecomputations/dolphin-mixtral-8x7b:free",
-                "mistralai/mistral-7b-instruct:free",
-                "google/gemma-2-9b-it:free",
-                "meta-llama/llama-3-8b-instruct:free"
+                "qwen/qwen-2.5-7b-instruct:free",           # 1. Highly stable & compliant
+                "microsoft/phi-3-mini-128k-instruct:free",  # 2. Extremely stable & fast
+                "meta-llama/llama-3-8b-instruct:free",      # 3. Reliable standard
+                "google/gemma-2-9b-it:free",                # 4. Reliable standard
+                "cognitivecomputations/dolphin-mixtral-8x7b:free" # 5. Uncensored (tries last)
             ]
             last_error = "Unknown error"
             for model in models_to_try:
                 try:
-                    res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=50)
+                    res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=40)
                     if res.status_code == 200:
                         return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
                     else:
