@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v20';
+const CACHE_NAME = 'spibody-ai-v21';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -344,26 +344,21 @@ def chat():
             except Exception as e:
                 return jsonify({"error": f"Vision model error: {str(e)}"}), 500
         else:
-            # UPDATED: Verified 100% FREE models as of late 2024
-            models_to_try = [
-                "mistralai/mistral-7b-instruct:free",           # 1. Highly stable & compliant
-                "microsoft/phi-3-mini-128k-instruct:free",      # 2. Extremely stable & fast
-                "meta-llama/llama-3-8b-instruct:free",          # 3. Reliable standard
-                "google/gemma-2-9b-it:free",                    # 4. Reliable standard
-                "cognitivecomputations/dolphin-mixtral-8x7b:free" # 5. Uncensored (tries last)
-            ]
-            last_error = "Unknown error"
-            for model in models_to_try:
-                try:
-                    res = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json={"model": model, "messages": messages}, timeout=40)
-                    if res.status_code == 200:
-                        return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
-                    else:
-                        last_error = f"{model} returned {res.status_code}: {res.text[:100]}"
-                except Exception as e:
-                    last_error = f"{model} failed: {str(e)}"
+            # THE ULTIMATE FIX: openrouter/auto dynamically routes to ANY available free model
+            try:
+                res = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions", 
+                    headers=headers, 
+                    json={"model": "openrouter/auto", "messages": messages}, 
+                    timeout=40
+                )
+                if res.status_code == 200:
+                    return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
+                else:
+                    return jsonify({"error": f"Auto model failed: {res.status_code} - {res.text[:150]}"}), res.status_code
+            except Exception as e:
+                return jsonify({"error": f"Connection error: {str(e)}"}), 500
                     
-            return jsonify({"error": f"All models busy. Last error: {last_error}"}), 503
     except Exception as e:
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
