@@ -57,13 +57,8 @@ body { display: flex; flex-direction: column; }
 textarea { flex: 1; border: none; background: transparent; resize: none; outline: none; font-family: inherit; font-size: 1.05rem; min-height: 60px; max-height: 200px; line-height: 1.5; color: var(--text); }
 .send-btn { width: 50px; height: 50px; border-radius: 50%; background: var(--primary); color: white; border: none; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 .send-btn:disabled { opacity: 0.5; }
-.upload-btn { width: 50px; height: 50px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
 .error-banner { background: #fee2e2; color: #991b1b; padding: 14px; border-radius: 12px; text-align: center; margin: 10px 16px; display: none; font-size: 0.9rem; }
-.image-preview { position: absolute; bottom: 80px; left: 16px; background: white; padding: 8px; border-radius: 12px; box-shadow: var(--shadow); display: none; }
-.image-preview img { max-height: 100px; border-radius: 8px; }
-
-.tip-banner { background: #fef3c7; color: #92400e; padding: 12px; border-radius: 12px; text-align: center; margin: 10px 16px; display: none; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -72,7 +67,6 @@ textarea { flex: 1; border: none; background: transparent; resize: none; outline
     <div class="header-title">Spibody AI</div>
     <div class="header-actions">
         <button class="action-btn" onclick="newChat()">New Chat</button>
-        <button class="action-btn" onclick="clearChat()">Clear</button>
     </div>
 </div>
 
@@ -84,14 +78,8 @@ textarea { flex: 1; border: none; background: transparent; resize: none; outline
 </div>
 
 <div id="errorBanner" class="error-banner"></div>
-<div id="tipBanner" class="tip-banner"> <strong>Tip:</strong> For large code like landing pages, break it into parts. Try: "Write just the HTML for a laptop store" then "Now write the CSS"</div>
 
-<div class="input-area" style="position: relative;">
-    <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(event)">
-    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">+</button>
-    <div class="image-preview" id="imgPreview">
-        <img id="previewImg" src="">
-    </div>
+<div class="input-area">
     <div class="input-wrapper">
         <textarea id="userInput" placeholder="Command Spibody AI..." oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight, 200)+'px'" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"></textarea>
     </div>
@@ -104,13 +92,9 @@ const userInput = document.getElementById('userInput');
 const sendBtn = document.getElementById('sendBtn');
 const welcome = document.getElementById('welcome');
 const errorBanner = document.getElementById('errorBanner');
-const tipBanner = document.getElementById('tipBanner');
-const imgPreview = document.getElementById('imgPreview');
-const previewImg = document.getElementById('previewImg');
 
 let isProcessing = false;
 let chatHistory = [];
-let currentImage = null;
 
 function loadHistory() {
     try {
@@ -119,13 +103,13 @@ function loadHistory() {
             chatHistory = JSON.parse(saved);
             if (chatHistory.length > 0) {
                 welcome.style.display = 'none';
-                chatHistory.forEach(msg => addMessageToScreen(msg.content, msg.role === 'user', msg.isImage || false));
+                chatHistory.forEach(msg => addMessageToScreen(msg.content, msg.role === 'user'));
             }
         }
-    } catch(e) { console.error("Failed to load history", e); }
+    } catch(e) { console.error("History load error", e); }
 }
 
-function addMessageToScreen(text, isUser, isHtml = false) {
+function addMessageToScreen(text, isUser) {
     welcome.style.display = 'none';
     const msg = document.createElement('div');
     msg.className = 'message ' + (isUser ? 'user' : 'bot');
@@ -136,7 +120,7 @@ function addMessageToScreen(text, isUser, isHtml = false) {
     
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.innerHTML = isHtml ? text : formatText(text);
+    bubble.innerHTML = formatText(text);
     
     const time = document.createElement('div');
     time.className = 'timestamp';
@@ -162,65 +146,34 @@ function formatText(text) {
     return html;
 }
 
-function handleFile(event) {
-    const file = event.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            currentImage = e.target.result;
-            previewImg.src = currentImage;
-            imgPreview.style.display = 'block';
-        };
-        reader.readAsDataURL(file);
-    }
-}
-
 function newChat() {
     if (chatHistory.length === 0) return;
-    if (confirm('Start a new chat? Current conversation will be cleared.')) {
+    if (confirm('Start a new chat?')) {
         chatHistory = [];
         localStorage.removeItem('spibody_history');
         chatBox.innerHTML = '';
         chatBox.appendChild(welcome);
         welcome.style.display = 'flex';
         errorBanner.style.display = 'none';
-        tipBanner.style.display = 'none';
-    }
-}
-
-function clearChat() {
-    if(confirm('Delete ALL history permanently?')) {
-        chatHistory = [];
-        localStorage.removeItem('spibody_history');
-        chatBox.innerHTML = '';
-        chatBox.appendChild(welcome);
-        welcome.style.display = 'flex';
     }
 }
 
 async function send() {
     const text = userInput.value.trim();
-    if ((!text && !currentImage) || isProcessing) return;
+    if (!text || isProcessing) return;
 
     isProcessing = true;
     sendBtn.disabled = true;
     sendBtn.textContent = '...';
     errorBanner.style.display = 'none';
-    tipBanner.style.display = 'none';
 
     try {
-        const hasImage = !!currentImage;
-        const displayText = text || '[Image uploaded]';
-        
-        addMessageToScreen(displayText, true, false);
-        chatHistory.push({role: 'user', content: displayText, isImage: hasImage});
+        addMessageToScreen(text, true);
+        chatHistory.push({role: 'user', content: text});
         localStorage.setItem('spibody_history', JSON.stringify(chatHistory));
         
         userInput.value = '';
         userInput.style.height = 'auto';
-        imgPreview.style.display = 'none';
-        const imageToSend = currentImage;
-        currentImage = null;
 
         const typingMsg = document.createElement('div');
         typingMsg.className = 'message bot';
@@ -230,20 +183,22 @@ async function send() {
         chatBox.scrollTop = chatBox.scrollHeight;
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 28000); // Just under Render's 30s limit
+        // 90 seconds to allow Render to wake up from sleep
+        const timeoutId = setTimeout(() => controller.abort(), 90000); 
 
         const res = await fetch('/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({message: text, history: chatHistory, image: imageToSend}),
+            body: JSON.stringify({message: text, history: chatHistory}),
             signal: controller.signal
         });
         
         clearTimeout(timeoutId);
 
+        // BULLETPROOF CHECK: If server returns HTML (like a 502/504 timeout page), catch it
         const contentType = res.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('timeout');
+            throw new Error('Server is waking up or busy. Please wait 30 seconds and try again.');
         }
 
         const data = await res.json();
@@ -251,24 +206,17 @@ async function send() {
 
         if (data.error) throw new Error(data.error);
 
-        addMessageToScreen(data.reply, false, data.is_image || false);
-        chatHistory.push({role: 'assistant', content: data.reply, isImage: data.is_image || false});
+        addMessageToScreen(data.reply, false);
+        chatHistory.push({role: 'assistant', content: data.reply});
         
-        if (chatHistory.length > 30) {
-            chatHistory = chatHistory.slice(-30);
-        }
+        if (chatHistory.length > 40) chatHistory = chatHistory.slice(-40);
         localStorage.setItem('spibody_history', JSON.stringify(chatHistory));
 
     } catch (err) {
         const typing = document.getElementById('typing');
         if (typing) typing.remove();
         
-        if (err.message === 'timeout' || err.name === 'AbortError') {
-            errorBanner.textContent = '️ Request timed out. The server has a 30-second limit.';
-            tipBanner.style.display = 'block';
-        } else {
-            errorBanner.textContent = 'Error: ' + err.message;
-        }
+        errorBanner.textContent = 'Error: ' + err.message;
         errorBanner.style.display = 'block';
         
         if (chatHistory.length > 0 && chatHistory[chatHistory.length-1].role === 'user') {
