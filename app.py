@@ -18,12 +18,12 @@ Always be direct, highly detailed, and execute the task precisely."""
 def index():
     return render_template('index.html')
 
-@app.route('/api/chat', methods=['POST'])
+@app.route('/chat', methods=['POST'])
 def chat():
     try:
-        data = request.get_json(force=True, silent=True)
+        data = request.get_json()
         if not data:
-            return jsonify({"error": "Invalid data"}), 400
+            return jsonify({"error": "Invalid JSON data"}), 400
 
         user_message = data.get('message', '')
         history = data.get('history', [])

@@ -173,10 +173,9 @@ function handleFile(event) {
     }
 }
 
-// NEW CHAT - Starts fresh but keeps old history in memory
 function newChat() {
     if (chatHistory.length === 0) return;
-    if (confirm('Start a new chat? Current conversation will be saved.')) {
+    if (confirm('Start a new chat? Current conversation will be cleared.')) {
         chatHistory = [];
         localStorage.removeItem('spibody_history');
         chatBox.innerHTML = '';
@@ -186,7 +185,6 @@ function newChat() {
     }
 }
 
-// CLEAR - Completely wipes everything
 function clearChat() {
     if(confirm('Delete ALL history permanently?')) {
         chatHistory = [];
@@ -227,18 +225,11 @@ async function send() {
         chatBox.appendChild(typingMsg);
         chatBox.scrollTop = chatBox.scrollHeight;
 
-        const res = await fetch('/api/chat', {
+        const res = await fetch('/chat', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({message: text, history: chatHistory, image: imageToSend})
         });
-
-        // Check if response is JSON
-        const contentType = res.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-            const text = await res.text();
-            throw new Error('Server returned HTML instead of JSON. Check backend.');
-        }
 
         const data = await res.json();
         typingMsg.remove();
