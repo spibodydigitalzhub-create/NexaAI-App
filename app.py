@@ -3,7 +3,6 @@ import requests
 import os
 import urllib.parse
 import json
-import time
 
 app = Flask(__name__)
 
@@ -31,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v11';
+const CACHE_NAME = 'spibody-ai-v12';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -49,15 +48,7 @@ def service_worker():
 
 @app.route('/health')
 def health():
-    return jsonify({"status": "ok", "timestamp": time.time()})
-
-@app.route('/debug')
-def debug():
-    return jsonify({
-        "api_key_set": bool(API_KEY),
-        "api_key_length": len(API_KEY) if API_KEY else 0,
-        "python_version": os.sys.version
-    })
+    return jsonify({"status": "ok"})
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -86,7 +77,10 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .header-logo img { width: 100%; height: 100%; object-fit: cover; }
 .header-title { font-weight: 700; font-size: 1.1rem; }
 .header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.reset-btn { background: #ef4444; border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.action-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 6px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+.action-btn:hover { background: rgba(255,255,255,0.3); }
+.action-btn.danger { background: #ef4444; }
+.action-btn.danger:hover { background: #dc2626; }
 .status-dot { width: 8px; height: 8px; background: #4ade80; border-radius: 50%; box-shadow: 0 0 8px #4ade80; animation: pulse 2s infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 .chat-container { flex: 1; overflow-y: auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; scroll-behavior: smooth; }
@@ -117,7 +111,7 @@ body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--tex
 .bubble li { margin-bottom: 6px; line-height: 1.5; }
 .bubble code { background: rgba(0,0,0,0.08); padding: 2px 6px; border-radius: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; user-select: all; }
 .message.user .bubble code { background: rgba(255,255,255,0.2); }
-.bubble pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 10px; overflow-x: auto; margin: 12px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; position: relative; user-select: text; -webkit-user-select: text; }
+.bubble pre { background: #1e293b; color: #e2e8f0; padding: 14px; border-radius: 10px; overflow-x: auto; margin: 12px 0; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; position: relative; user-select: text; -webkit-user-select: text; white-space: pre-wrap; word-wrap: break-word; }
 .bubble pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
 .copy-btn { position: absolute; top: 8px; right: 8px; background: rgba(255,255,255,0.15); border: none; color: #cbd5e1; padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; }
 .copy-btn:hover { background: rgba(255,255,255,0.25); }
@@ -141,8 +135,6 @@ textarea::placeholder { color: var(--text-light); }
 .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .footer-hint { text-align: center; font-size: 0.75rem; color: var(--text-light); padding: 6px; background: var(--surface); }
 .error-banner { background: #fee2e2; border: 1px solid #ef4444; color: #991b1b; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; text-align: center; margin: 10px 16px; animation: fadeIn 0.3s ease-out; }
-.server-status { position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 8px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; z-index: 100; display: none; animation: slideDown 0.3s ease-out; }
-@keyframes slideDown { from { transform: translateX(-50%) translateY(-20px); opacity: 0; } to { transform: translateX(-50%) translateY(0); opacity: 1; } }
 </style>
 </head>
 <body>
@@ -151,14 +143,13 @@ textarea::placeholder { color: var(--text-light); }
     <div class="header-logo"><img src="https://i.imgur.com/J3zYDId.jpeg" alt="Spibody AI"></div>
     <div class="header-title">Spibody AI</div>
     <div class="header-actions">
-        <button class="reset-btn" onclick="forceReset()">Force Reset</button>
+        <button class="action-btn" onclick="newChat()">New Chat</button>
+        <button class="action-btn danger" onclick="forceReset()">Force Reset</button>
         <div style="display:flex;align-items:center;gap:6px;font-size:0.8rem;opacity:0.9;">
             <span class="status-dot"></span><span>Unrestricted</span>
         </div>
     </div>
 </div>
-
-<div id="serverStatus" class="server-status">⏳ Server is waking up... Please wait...</div>
 
 <div class="chat-container" id="chat-box">
     <div class="welcome" id="welcome">
@@ -184,16 +175,16 @@ const userInput = document.getElementById('userInput');
 const sendBtn = document.getElementById('sendBtn');
 const welcome = document.getElementById('welcome');
 const errorBanner = document.getElementById('errorBanner');
-const serverStatus = document.getElementById('serverStatus');
 
 let isProcessing = false;
 let chatHistory = [];
-let requestQueue = [];
 
+// Safe load
 try {
     const saved = localStorage.getItem('spibody_history');
     if (saved) chatHistory = JSON.parse(saved);
 } catch (e) {
+    console.error("Memory load error, clearing:", e);
     localStorage.removeItem('spibody_history');
 }
 
@@ -201,8 +192,19 @@ function saveHistory() {
     try { localStorage.setItem('spibody_history', JSON.stringify(chatHistory)); } catch (e) {}
 }
 
+function newChat() {
+    if(confirm("Start a new chat? Current memory will be cleared.")) {
+        chatHistory = [];
+        localStorage.removeItem('spibody_history');
+        chatBox.innerHTML = '';
+        chatBox.appendChild(welcome);
+        welcome.style.display = 'flex';
+        errorBanner.style.display = 'none';
+    }
+}
+
 function forceReset() {
-    if(confirm("Clear all memory and refresh?")) {
+    if(confirm("This will completely clear memory and reload the page. Continue?")) {
         localStorage.clear();
         location.reload();
     }
@@ -211,7 +213,9 @@ function forceReset() {
 function renderHistory() {
     if (chatHistory.length > 0) {
         welcome.style.display = 'none';
-        chatHistory.forEach(msg => addMessage(msg.content, msg.role === 'user', false));
+        chatHistory.forEach(msg => {
+            try { addMessage(msg.content, msg.role === 'user', false); } catch(e) { console.error("Render error:", e); }
+        });
     }
 }
 
@@ -223,78 +227,95 @@ function showError(msg) {
     errorBanner.style.display = 'block';
     setTimeout(() => { errorBanner.style.display = 'none'; }, 10000);
 }
-function showServerStatus(msg) {
-    serverStatus.textContent = msg;
-    serverStatus.style.display = 'block';
-}
-function hideServerStatus() {
-    serverStatus.style.display = 'none';
-}
 
+// BULLETPROOF MARKDOWN PARSER
 function parseMarkdown(text) {
-    if (!text) return '';
-    let html = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(match, lang, code) {
-        const langLabel = lang ? '<div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;font-family:Inter,sans-serif;">' + lang + '</div>' : '';
-        return '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>' + langLabel + '<code>' + code.trim() + '</code></pre>';
-    });
-    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
-    html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
-    html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
-    html = html.replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');
-    html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
-    html = html.replace(/\\*(.*?)\\*/g, '<em>$1</em>');
-    html = html.replace(/^&gt; (.*$)/gm, '<blockquote>$1</blockquote>');
-    html = html.replace(/^---$/gm, '<hr>');
-    html = html.replace(/^[\\-\\*] (.*$)/gm, '<li>$1</li>');
-    html = html.replace(/(<li>.*<\\/li>\\n?)+/g, '<ul>$&</ul>');
-    html = html.replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>');
-    html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>');
-    const paragraphs = html.split(/\\n\\n+/);
-    html = paragraphs.map(p => {
-        p = p.trim();
-        if (!p) return '';
-        if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || p.startsWith('<pre') || p.startsWith('<blockquote') || p.startsWith('<hr')) return p;
-        p = p.replace(/\\n/g, '<br>');
-        return '<p>' + p + '</p>';
-    }).join('');
-    return html;
+    try {
+        if (!text) return '';
+        let html = String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        // Code blocks
+        html = html.replace(/```(\\w*)\\n([\\s\\S]*?)```/g, function(match, lang, code) {
+            const langLabel = lang ? '<div style="font-size:0.7rem;color:#94a3b8;margin-bottom:8px;font-family:Inter,sans-serif;">' + lang + '</div>' : '';
+            return '<pre><button class="copy-btn" onclick="copyCode(this)">Copy</button>' + langLabel + '<code>' + code.trim() + '</code></pre>';
+        });
+        
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+        html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+        html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+        html = html.replace(/\\*\\*\\*(.*?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');
+        html = html.replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>');
+        html = html.replace(/\\*(.*?)\\*/g, '<em>$1</em>');
+        html = html.replace(/^&gt; (.*$)/gm, '<blockquote>$1</blockquote>');
+        html = html.replace(/^---$/gm, '<hr>');
+        html = html.replace(/^[\\-\\*] (.*$)/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\\/li>\\s*)+/g, '<ul>$&</ul>');
+        html = html.replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>');
+        html = html.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>');
+        
+        const paragraphs = html.split(/\\n\\n+/);
+        html = paragraphs.map(p => {
+            p = p.trim();
+            if (!p) return '';
+            if (p.startsWith('<h') || p.startsWith('<ul') || p.startsWith('<ol') || p.startsWith('<pre') || p.startsWith('<blockquote') || p.startsWith('<hr')) return p;
+            p = p.replace(/\\n/g, '<br>');
+            return '<p>' + p + '</p>';
+        }).join('');
+        
+        return html;
+    } catch (e) {
+        console.error("Markdown parse error:", e);
+        return String(text).replace(/\\n/g, '<br>'); // Fallback to raw text with line breaks
+    }
 }
 
 function copyCode(btn) {
-    const code = btn.parentElement.querySelector('code').textContent;
-    navigator.clipboard.writeText(code).then(() => {
-        btn.textContent = 'Copied!'; btn.classList.add('copied');
-        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
-    }).catch(() => {
-        const textarea = document.createElement('textarea');
-        textarea.value = code; document.body.appendChild(textarea); textarea.select();
-        document.execCommand('copy'); document.body.removeChild(textarea);
-        btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
-    });
+    try {
+        const code = btn.parentElement.querySelector('code').textContent;
+        navigator.clipboard.writeText(code).then(() => {
+            btn.textContent = 'Copied!'; btn.classList.add('copied');
+            setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+        }).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = code; document.body.appendChild(textarea); textarea.select();
+            document.execCommand('copy'); document.body.removeChild(textarea);
+            btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+        });
+    } catch (e) { console.error("Copy error:", e); }
 }
 
 function addMessage(text, isUser, isHtml = false) {
-    if (welcome) welcome.style.display = 'none';
-    const msg = document.createElement('div');
-    msg.className = 'message ' + (isUser ? 'user' : 'bot');
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
-    avatar.innerHTML = isUser ? '👤' : '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">';
-    const bubble = document.createElement('div');
-    bubble.className = 'bubble';
-    bubble.innerHTML = isHtml ? text : parseMarkdown(text);
-    const timeEl = document.createElement('div');
-    timeEl.className = 'timestamp';
-    timeEl.textContent = getTime();
-    msg.appendChild(avatar);
-    const content = document.createElement('div');
-    content.style.flex = '1'; content.style.maxWidth = '75%';
-    content.appendChild(bubble); content.appendChild(timeEl);
-    msg.appendChild(content);
-    chatBox.appendChild(msg);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    try {
+        if (welcome) welcome.style.display = 'none';
+        const msg = document.createElement('div');
+        msg.className = 'message ' + (isUser ? 'user' : 'bot');
+        
+        const avatar = document.createElement('div');
+        avatar.className = 'avatar ' + (isUser ? 'user' : 'bot');
+        avatar.innerHTML = isUser ? '👤' : '<img src="https://i.imgur.com/J3zYDId.jpeg" alt="AI">';
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.innerHTML = isHtml ? String(text) : parseMarkdown(text);
+        
+        const timeEl = document.createElement('div');
+        timeEl.className = 'timestamp';
+        timeEl.textContent = getTime();
+        
+        msg.appendChild(avatar);
+        const content = document.createElement('div');
+        content.style.flex = '1'; content.style.maxWidth = '75%';
+        content.appendChild(bubble); content.appendChild(timeEl);
+        msg.appendChild(content);
+        
+        chatBox.appendChild(msg);
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+        console.error("addMessage error:", e);
+        // Fallback: just show raw text if everything else fails
+        chatBox.innerHTML += `<div class="message bot"><div class="bubble">${String(text).replace(/\\n/g, '<br>')}</div></div>`;
+    }
 }
 
 function addTyping() {
@@ -307,37 +328,25 @@ function addTyping() {
 
 function removeTyping() { const t = document.getElementById('typing-msg'); if (t) t.remove(); }
 
-async function checkServerHealth() {
-    try {
-        const res = await fetch('/health', {method: 'GET'});
-        return res.ok;
-    } catch (e) {
-        return false;
-    }
-}
-
 async function sendMessage() {
     const text = userInput.value.trim();
     if (!text || isProcessing) return;
     
-    // Check if server is awake first
-    const serverAwake = await checkServerHealth();
-    if (!serverAwake) {
-        showServerStatus('⏳ Server is waking up... This takes 30-50 seconds. Please wait...');
-        await new Promise(resolve => setTimeout(resolve, 15000));
-        hideServerStatus();
-    }
-    
+    // STRICT LOCK
     isProcessing = true;
     sendBtn.disabled = true;
     sendBtn.innerHTML = '⏳';
     errorBanner.style.display = 'none';
     
-    addMessage(text, true);
+    try {
+        addMessage(text, true);
+    } catch (e) { console.error("UI error:", e); }
+    
     chatHistory.push({role: 'user', content: text});
     
-    if (chatHistory.length > 8) {
-        chatHistory = chatHistory.slice(-8);
+    // AGGRESSIVE TRIM: Keep ONLY last 6 messages (3 turns) to prevent server memory crashes
+    if (chatHistory.length > 6) {
+        chatHistory = chatHistory.slice(-6);
     }
     saveHistory();
     
@@ -345,73 +354,55 @@ async function sendMessage() {
     userInput.style.height = 'auto';
     addTyping();
     
-    let attempts = 0;
-    const maxAttempts = 3;
-    let success = false;
-    
-    while (attempts < maxAttempts && !success) {
-        attempts++;
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 60000);
-            
-            const res = await fetch('/chat', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({message: text, history: chatHistory}),
-                signal: controller.signal
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (res.status === 502 || res.status === 503) {
-                showServerStatus(` Server is waking up... Attempt ${attempts}/${maxAttempts}`);
-                await new Promise(resolve => setTimeout(resolve, 20000));
-                hideServerStatus();
-                continue;
-            }
-            
-            if (!res.ok) {
-                throw new Error(`Server error: ${res.status}`);
-            }
-            
-            const data = await res.json();
-            removeTyping();
-            
-            if (data.error) {
-                throw new Error(data.error);
-            }
-            
-            chatHistory.push({role: 'assistant', content: data.reply});
-            saveHistory();
-            
-            if (data.is_image) addMessage(data.reply, false, true);
-            else addMessage(data.reply, false);
-            
-            success = true;
-            
-        } catch (err) {
-            console.error("Attempt", attempts, "failed:", err);
-            if (attempts < maxAttempts) {
-                showServerStatus(`⏳ Retrying... Attempt ${attempts}/${maxAttempts}`);
-                await new Promise(resolve => setTimeout(resolve, 15000));
-                hideServerStatus();
-            } else {
-                removeTyping();
-                let errMsg = "Connection failed after multiple attempts. The server might be having issues.";
-                if (err.name === 'AbortError') errMsg = "Request timed out. The server is busy.";
-                else if (err.message.includes('502')) errMsg = "Server temporarily unavailable.";
-                showError(errMsg);
-                chatHistory.pop();
-                saveHistory();
-            }
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        
+        const res = await fetch('/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({message: text, history: chatHistory}),
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+            throw new Error(`Server error: ${res.status}`);
         }
+        
+        const data = await res.json();
+        removeTyping();
+        
+        if (data.error) {
+            throw new Error(data.error);
+        }
+        
+        chatHistory.push({role: 'assistant', content: data.reply});
+        if (chatHistory.length > 6) chatHistory = chatHistory.slice(-6);
+        saveHistory();
+        
+        if (data.is_image) addMessage(data.reply, false, true);
+        else addMessage(data.reply, false);
+        
+    } catch (err) {
+        removeTyping();
+        console.error("Chat error:", err);
+        let errMsg = "Connection failed. Please try again.";
+        if (err.name === 'AbortError') errMsg = "Request timed out. The server might be busy.";
+        else if (err.message.includes('502')) errMsg = "Server temporarily unavailable. Wait 10 seconds and try again.";
+        showError(errMsg);
+        
+        // Remove the failed user message so it can be retried cleanly
+        chatHistory.pop(); 
+        saveHistory();
+    } finally {
+        // ALWAYS UNLOCK, NO MATTER WHAT
+        isProcessing = false;
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '➤';
+        userInput.focus();
     }
-    
-    isProcessing = false;
-    sendBtn.disabled = false;
-    sendBtn.innerHTML = '➤';
-    userInput.focus();
 }
 
 renderHistory();
@@ -428,7 +419,6 @@ def home():
 @app.route('/chat', methods=['POST'])
 def chat():
     try:
-        print("🔵 Chat request received")
         data = request.json
         user_message = data.get('message', '')
         history = data.get('history', [])
@@ -444,14 +434,10 @@ def chat():
             return jsonify({"reply": html_reply, "is_image": True})
         
         if not API_KEY:
-            print(" API key missing")
-            return jsonify({"error": "API key missing on server. Please check Render environment variables."})
+            return jsonify({"error": "API key missing on server"})
         
-        print(f"🟡 API key length: {len(API_KEY)}")
-        
-        # Use the most reliable free model
         models_to_try = [
-            "openrouter/auto",  # Automatically picks best available model
+            "openrouter/auto",
             "cohere/north-mini-code:free",
             "meta-llama/llama-3-8b-instruct:free"
         ]
@@ -467,33 +453,22 @@ def chat():
         
         for model in models_to_try:
             try:
-                print(f"🟡 Trying model: {model}")
                 res = requests.post(
                     "https://openrouter.ai/api/v1/chat/completions", 
                     headers=headers, 
                     json={"model": model, "messages": messages}, 
                     timeout=50
                 )
-                print(f"🟡 Model {model} returned status: {res.status_code}")
                 if res.status_code == 200:
-                    reply = res.json()['choices'][0]['message']['content']
-                    print("🟢 Success!")
-                    return jsonify({"reply": reply, "is_image": False})
+                    return jsonify({"reply": res.json()['choices'][0]['message']['content'], "is_image": False})
                 elif res.status_code == 429:
-                    print("🟡 Rate limited, trying next model")
                     continue
-                elif res.status_code == 401:
-                    print("❌ Invalid API key")
-                    return jsonify({"error": "Invalid API key. Please check your OpenRouter key."})
-            except Exception as e:
-                print(f"🔴 Model {model} failed: {e}")
+            except Exception:
                 continue
         
-        print("❌ All models failed")
         return jsonify({"error": "All AI models are currently busy. Please try again in a moment."}), 503
 
     except Exception as e:
-        print(f"❌ Internal error: {e}")
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 if __name__ == '__main__':
