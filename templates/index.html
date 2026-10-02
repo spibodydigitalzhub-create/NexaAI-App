@@ -59,9 +59,11 @@ textarea { flex: 1; border: none; background: transparent; resize: none; outline
 .send-btn:disabled { opacity: 0.5; }
 .upload-btn { width: 50px; height: 50px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-muted); cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-.error-banner { background: #fee2e2; color: #991b1b; padding: 14px; border-radius: 12px; text-align: center; margin: 10px 16px; display: none; }
+.error-banner { background: #fee2e2; color: #991b1b; padding: 14px; border-radius: 12px; text-align: center; margin: 10px 16px; display: none; font-size: 0.9rem; }
 .image-preview { position: absolute; bottom: 80px; left: 16px; background: white; padding: 8px; border-radius: 12px; box-shadow: var(--shadow); display: none; }
 .image-preview img { max-height: 100px; border-radius: 8px; }
+
+.tip-banner { background: #fef3c7; color: #92400e; padding: 12px; border-radius: 12px; text-align: center; margin: 10px 16px; display: none; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -82,6 +84,7 @@ textarea { flex: 1; border: none; background: transparent; resize: none; outline
 </div>
 
 <div id="errorBanner" class="error-banner"></div>
+<div id="tipBanner" class="tip-banner"> <strong>Tip:</strong> For large code like landing pages, break it into parts. Try: "Write just the HTML for a laptop store" then "Now write the CSS"</div>
 
 <div class="input-area" style="position: relative;">
     <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFile(event)">
@@ -101,6 +104,7 @@ const userInput = document.getElementById('userInput');
 const sendBtn = document.getElementById('sendBtn');
 const welcome = document.getElementById('welcome');
 const errorBanner = document.getElementById('errorBanner');
+const tipBanner = document.getElementById('tipBanner');
 const imgPreview = document.getElementById('imgPreview');
 const previewImg = document.getElementById('previewImg');
 
@@ -180,6 +184,7 @@ function newChat() {
         chatBox.appendChild(welcome);
         welcome.style.display = 'flex';
         errorBanner.style.display = 'none';
+        tipBanner.style.display = 'none';
     }
 }
 
@@ -201,6 +206,7 @@ async function send() {
     sendBtn.disabled = true;
     sendBtn.textContent = '...';
     errorBanner.style.display = 'none';
+    tipBanner.style.display = 'none';
 
     try {
         const hasImage = !!currentImage;
@@ -223,9 +229,8 @@ async function send() {
         chatBox.appendChild(typingMsg);
         chatBox.scrollTop = chatBox.scrollHeight;
 
-        // ADD TIMEOUT CONTROLLER FOR LARGE CODE GENERATION
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 seconds
+        const timeoutId = setTimeout(() => controller.abort(), 28000); // Just under Render's 30s limit
 
         const res = await fetch('/chat', {
             method: 'POST',
@@ -236,10 +241,9 @@ async function send() {
         
         clearTimeout(timeoutId);
 
-        // SAFETY CHECK: PREVENT HTML ERROR PAGES FROM CRASHING THE APP
         const contentType = res.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
-            throw new Error('Server returned an HTML error page (likely a timeout). Try asking for a smaller part of the code.');
+            throw new Error('timeout');
         }
 
         const data = await res.json();
@@ -258,9 +262,14 @@ async function send() {
     } catch (err) {
         const typing = document.getElementById('typing');
         if (typing) typing.remove();
-        errorBanner.textContent = 'Error: ' + err.message;
+        
+        if (err.message === 'timeout' || err.name === 'AbortError') {
+            errorBanner.textContent = '️ Request timed out. The server has a 30-second limit.';
+            tipBanner.style.display = 'block';
+        } else {
+            errorBanner.textContent = 'Error: ' + err.message;
+        }
         errorBanner.style.display = 'block';
-        setTimeout(() => errorBanner.style.display = 'none', 15000);
         
         if (chatHistory.length > 0 && chatHistory[chatHistory.length-1].role === 'user') {
             chatHistory.pop();
