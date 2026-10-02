@@ -30,7 +30,7 @@ MANIFEST = {
 }
 
 SW_JS = """
-const CACHE_NAME = 'spibody-ai-v19';
+const CACHE_NAME = 'spibody-ai-v20';
 self.addEventListener('install', event => { self.skipWaiting(); });
 self.addEventListener('activate', event => { event.waitUntil(clients.claim()); });
 self.addEventListener('fetch', event => {
@@ -344,12 +344,12 @@ def chat():
             except Exception as e:
                 return jsonify({"error": f"Vision model error: {str(e)}"}), 500
         else:
-            # REORDERED: Most stable models first, uncensored models last
+            # UPDATED: Verified 100% FREE models as of late 2024
             models_to_try = [
-                "qwen/qwen-2.5-7b-instruct:free",           # 1. Highly stable & compliant
-                "microsoft/phi-3-mini-128k-instruct:free",  # 2. Extremely stable & fast
-                "meta-llama/llama-3-8b-instruct:free",      # 3. Reliable standard
-                "google/gemma-2-9b-it:free",                # 4. Reliable standard
+                "mistralai/mistral-7b-instruct:free",           # 1. Highly stable & compliant
+                "microsoft/phi-3-mini-128k-instruct:free",      # 2. Extremely stable & fast
+                "meta-llama/llama-3-8b-instruct:free",          # 3. Reliable standard
+                "google/gemma-2-9b-it:free",                    # 4. Reliable standard
                 "cognitivecomputations/dolphin-mixtral-8x7b:free" # 5. Uncensored (tries last)
             ]
             last_error = "Unknown error"
